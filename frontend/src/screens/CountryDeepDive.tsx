@@ -21,15 +21,6 @@ export default function CountryDeepDive(): JSX.Element {
     sectors[0]?.name ?? '',
   )
 
-  const handleRowClick = useCallback(
-    (item: RankingItem) => {
-      if (item.sector) {
-        navigate(`/compass/country/${code}/sector/${item.sector}`)
-      }
-    },
-    [navigate, code],
-  )
-
   const handleSectorSelect = useCallback(
     (item: RankingItem) => {
       setSelectedSector(item.name)
