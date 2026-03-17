@@ -43,7 +43,7 @@ def calculate_regime(
     # Compute 200-day SMA
     df = df.with_columns(
         pl.col("close")
-        .rolling_mean(window_size=ma_period, min_periods=ma_period)
+        .rolling_mean(window_size=ma_period, min_samples=ma_period)
         .alias("sma_200")
     )
 

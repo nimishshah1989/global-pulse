@@ -119,7 +119,7 @@ class RSCalculator:
         """
         result = rs_line_df.sort("date").with_columns(
             pl.col("rs_line")
-            .rolling_mean(window_size=ma_period, min_periods=ma_period)
+            .rolling_mean(window_size=ma_period, min_samples=ma_period)
             .alias("rs_ma_150")
         )
 
