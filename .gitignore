@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Build
+dist/
+build/
+.next/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# QA
+qa_screenshots/
+QA_REPORT.md
+
+# Data cache
+data/stooq_bulk/
+data/cache/
+
+# Testing
+coverage/
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Docker
+*.log
