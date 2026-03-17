@@ -9,12 +9,13 @@ KEY="~/.ssh/jsl-wealth-key.pem"
 SSH="ssh -i $KEY ubuntu@$SERVER"
 PROJECT_DIR="/home/ubuntu/momentum-compass"
 REPO="https://github.com/nimishshah1989/global-pulse.git"
+BRANCH="claude/review-and-plan-architecture-6aWr1"
 
 echo "Deploying Momentum Compass to $SERVER..."
 
 # Step 1: Clone or pull
 echo "Syncing code..."
-$SSH "if [ -d $PROJECT_DIR ]; then cd $PROJECT_DIR && git pull origin main; else git clone $REPO $PROJECT_DIR && cd $PROJECT_DIR; fi"
+$SSH "if [ -d $PROJECT_DIR ]; then cd $PROJECT_DIR && git fetch origin && git checkout $BRANCH && git pull origin $BRANCH; else git clone -b $BRANCH $REPO $PROJECT_DIR; fi"
 
 # Step 2: Create .env if not exists
 echo "Setting up environment..."
