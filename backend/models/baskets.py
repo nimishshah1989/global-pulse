@@ -2,7 +2,6 @@
 
 import datetime
 import uuid
-from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -20,7 +19,7 @@ class BasketPositionCreate(BaseModel):
     """Request body for adding a position to a basket."""
 
     instrument_id: str
-    weight: Decimal
+    weight: float
 
 
 class BasketPositionResponse(BaseModel):
@@ -31,7 +30,7 @@ class BasketPositionResponse(BaseModel):
     id: uuid.UUID
     basket_id: uuid.UUID
     instrument_id: str
-    weight: Decimal
+    weight: float
     added_at: datetime.datetime
     removed_at: datetime.datetime | None = None
     status: str = "active"
@@ -59,9 +58,9 @@ class BasketNAVResponse(BaseModel):
 
     basket_id: uuid.UUID
     date: datetime.date
-    nav: Decimal
-    benchmark_nav: Decimal | None = None
-    rs_line: Decimal | None = None
+    nav: float
+    benchmark_nav: float | None = None
+    rs_line: float | None = None
 
 
 class BasketPerformanceResponse(BaseModel):
@@ -70,8 +69,8 @@ class BasketPerformanceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     basket_id: uuid.UUID
-    cumulative_return: Decimal
-    cagr: Decimal | None = None
-    max_drawdown: Decimal
-    sharpe_ratio: Decimal | None = None
-    pct_weeks_outperforming: Decimal | None = None
+    cumulative_return: float
+    cagr: float | None = None
+    max_drawdown: float
+    sharpe_ratio: float | None = None
+    pct_weeks_outperforming: float | None = None

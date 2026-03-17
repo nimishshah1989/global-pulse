@@ -2,7 +2,6 @@
 
 import logging
 from datetime import datetime, timezone
-from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -53,13 +52,11 @@ async def _try_db_regime(session: AsyncSession) -> dict[str, Any] | None:
         regime = score.regime or "RISK_ON"
 
         # Compute benchmark_vs_ma200 from rs_line / rs_ma_150 as proxy
-        benchmark_vs_ma200 = Decimal("1.00")
+        benchmark_vs_ma200 = 1.0
         if score.rs_line is not None and score.rs_ma_150 is not None:
-            rs_ma = Decimal(str(score.rs_ma_150))
+            rs_ma = float(score.rs_ma_150)
             if rs_ma > 0:
-                benchmark_vs_ma200 = (
-                    Decimal(str(score.rs_line)) / rs_ma
-                ).quantize(Decimal("0.01"))
+                benchmark_vs_ma200 = round(float(score.rs_line) / rs_ma, 2)
 
         return {
             "regime": regime,
@@ -92,7 +89,7 @@ async def get_regime(
         data={
             "regime": "RISK_ON",
             "benchmark": "ACWI",
-            "benchmark_vs_ma200": Decimal("1.05"),
+            "benchmark_vs_ma200": 1.05,
         },
         meta=Meta(timestamp=datetime.now(tz=timezone.utc)),
     )

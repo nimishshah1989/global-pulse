@@ -1,7 +1,8 @@
 """Pydantic v2 models for price data API responses."""
 
 import datetime
-from decimal import Decimal
+
+
 
 from pydantic import BaseModel, ConfigDict
 
@@ -13,10 +14,10 @@ class PriceResponse(BaseModel):
 
     instrument_id: str
     date: datetime.date
-    open: Decimal | None = None
-    high: Decimal | None = None
-    low: Decimal | None = None
-    close: Decimal
+    open: float | None = None
+    high: float | None = None
+    low: float | None = None
+    close: float
     volume: int | None = None
 
 

@@ -3,7 +3,6 @@
 import datetime
 import enum
 import uuid
-from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -30,7 +29,7 @@ class OpportunityResponse(BaseModel):
     instrument_id: str
     date: datetime.date
     signal_type: str
-    conviction_score: Decimal | None = None
+    conviction_score: float | None = None
     description: str | None = None
     metadata: dict | None = None
     created_at: datetime.datetime
@@ -43,7 +42,7 @@ class MultiLevelAlignmentResponse(BaseModel):
 
     id: uuid.UUID
     date: datetime.date
-    conviction_score: Decimal | None = None
+    conviction_score: float | None = None
     description: str | None = None
 
     # The alignment chain
