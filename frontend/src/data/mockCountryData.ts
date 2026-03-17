@@ -2,6 +2,7 @@ import type { RankingItem } from '@/types/rs'
 
 export const COUNTRY_FLAGS: Record<string, string> = {
   US: '\uD83C\uDDFA\uD83C\uDDF8',
+  UK: '\uD83C\uDDEC\uD83C\uDDE7',
   GB: '\uD83C\uDDEC\uD83C\uDDE7',
   DE: '\uD83C\uDDE9\uD83C\uDDEA',
   FR: '\uD83C\uDDEB\uD83C\uDDF7',
@@ -18,6 +19,7 @@ export const COUNTRY_FLAGS: Record<string, string> = {
 
 export const COUNTRY_NAMES: Record<string, string> = {
   US: 'United States',
+  UK: 'United Kingdom',
   GB: 'United Kingdom',
   DE: 'Germany',
   FR: 'France',
@@ -44,6 +46,6 @@ export const MOCK_COUNTRY_DATA: RankingItem[] = [
   { instrument_id: 'AXJO', name: 'ASX 200', country: 'AU', sector: null, adjusted_rs_score: 45.1, rs_momentum: -1.5, quadrant: 'LAGGING', rs_pct_1m: 38, rs_pct_3m: 45, rs_pct_6m: 48, rs_pct_12m: 46, volume_ratio: 0.92, rs_trend: 'UNDERPERFORMING', liquidity_tier: 1, extension_warning: false },
   { instrument_id: 'BVSP', name: 'IBOVESPA', country: 'BR', sector: null, adjusted_rs_score: 42.3, rs_momentum: 7.8, quadrant: 'IMPROVING', rs_pct_1m: 58, rs_pct_3m: 42, rs_pct_6m: 38, rs_pct_12m: 35, volume_ratio: 1.18, rs_trend: 'UNDERPERFORMING', liquidity_tier: 1, extension_warning: false },
   { instrument_id: 'HSI', name: 'Hang Seng', country: 'HK', sector: null, adjusted_rs_score: 38.5, rs_momentum: 2.4, quadrant: 'IMPROVING', rs_pct_1m: 48, rs_pct_3m: 38, rs_pct_6m: 35, rs_pct_12m: 32, volume_ratio: 1.10, rs_trend: 'UNDERPERFORMING', liquidity_tier: 1, extension_warning: false },
-  { instrument_id: 'FTM', name: 'FTSE 100', country: 'GB', sector: null, adjusted_rs_score: 35.2, rs_momentum: -8.4, quadrant: 'LAGGING', rs_pct_1m: 30, rs_pct_3m: 35, rs_pct_6m: 40, rs_pct_12m: 42, volume_ratio: 0.82, rs_trend: 'UNDERPERFORMING', liquidity_tier: 1, extension_warning: false },
+  { instrument_id: 'FTM', name: 'FTSE 100', country: 'UK', sector: null, adjusted_rs_score: 35.2, rs_momentum: -8.4, quadrant: 'LAGGING', rs_pct_1m: 30, rs_pct_3m: 35, rs_pct_6m: 40, rs_pct_12m: 42, volume_ratio: 0.82, rs_trend: 'UNDERPERFORMING', liquidity_tier: 1, extension_warning: false },
   { instrument_id: 'CSI300', name: 'CSI 300', country: 'CN', sector: null, adjusted_rs_score: 28.9, rs_momentum: -12.1, quadrant: 'LAGGING', rs_pct_1m: 22, rs_pct_3m: 28, rs_pct_6m: 32, rs_pct_12m: 30, volume_ratio: 0.75, rs_trend: 'UNDERPERFORMING', liquidity_tier: 1, extension_warning: false },
 ]

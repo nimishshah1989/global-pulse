@@ -9,6 +9,7 @@ export function useBaskets() {
       const response = await apiClient.get<Basket[]>('/baskets')
       return response.data
     },
+    retry: 1,
   })
 }
 

@@ -2,6 +2,8 @@ import { useBenchmarkStore } from '@/store/benchmarkStore'
 
 const BENCHMARK_OPTIONS = [
   { value: 'ACWI', label: 'MSCI ACWI' },
+  { value: 'NSEI', label: 'NIFTY 50' },
+  { value: 'SPX', label: 'S&P 500' },
   { value: 'GLD', label: 'Gold' },
   { value: 'SHY', label: 'USD Cash' },
   { value: 'EEM', label: 'Emerging Markets' },

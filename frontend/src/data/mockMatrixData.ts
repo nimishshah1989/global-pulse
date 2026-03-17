@@ -12,6 +12,7 @@ export const MATRIX_SECTORS = [
 
 export const COUNTRY_LABELS: Record<string, string> = {
   US: '\u{1F1FA}\u{1F1F8} US',
+  UK: '\u{1F1EC}\u{1F1E7} UK',
   GB: '\u{1F1EC}\u{1F1E7} UK',
   DE: '\u{1F1E9}\u{1F1EA} DE',
   FR: '\u{1F1EB}\u{1F1F7} FR',

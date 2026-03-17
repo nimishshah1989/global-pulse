@@ -145,6 +145,59 @@ export default function RRGScatter({
       .x((d) => xScale(d.rs_score))
       .y((d) => yScale(d.rs_momentum))
 
+    // Collect label positions for collision detection
+    const labelPositions: { x: number; y: number; w: number; h: number }[] = []
+
+    function findNonOverlappingPosition(
+      cx: number,
+      cy: number,
+      textWidth: number,
+    ): { lx: number; ly: number } {
+      const h = 12
+      // Try 8 directions: right, top-right, top, top-left, left, bottom-left, bottom, bottom-right
+      const offsets = [
+        { dx: 9, dy: 4 },
+        { dx: 9, dy: -8 },
+        { dx: 9, dy: 14 },
+        { dx: -(textWidth + 9), dy: 4 },
+        { dx: -(textWidth + 9), dy: -8 },
+        { dx: -(textWidth + 9), dy: 14 },
+        { dx: -textWidth / 2, dy: -12 },
+        { dx: -textWidth / 2, dy: 18 },
+      ]
+
+      for (const { dx, dy } of offsets) {
+        const lx = cx + dx
+        const ly = cy + dy
+        const rect = { x: lx, y: ly - h, w: textWidth, h }
+        const overlaps = labelPositions.some(
+          (p) =>
+            rect.x < p.x + p.w &&
+            rect.x + rect.w > p.x &&
+            rect.y < p.y + p.h &&
+            rect.y + rect.h > p.y,
+        )
+        if (!overlaps && lx >= 0 && lx + textWidth <= innerWidth && ly >= 0 && ly <= innerHeight) {
+          labelPositions.push(rect)
+          return { lx, ly }
+        }
+      }
+      // Fallback: default right
+      const fallback = { x: cx + 9, y: cy + 4 - h, w: textWidth, h }
+      labelPositions.push(fallback)
+      return { lx: cx + 9, ly: cy + 4 }
+    }
+
+    // Shorten long names for cleaner chart
+    function shortenName(name: string): string {
+      return name
+        .replace(/Select Sector SPDR$/i, '')
+        .replace(/Select Sector$/i, '')
+        .replace(/ SPDR$/i, '')
+        .replace(/ ETF$/i, '')
+        .trim()
+    }
+
     // Draw trails and dots
     data.forEach((point) => {
       const color = DOT_COLORS[point.quadrant]
@@ -179,22 +232,29 @@ export default function RRGScatter({
         if (onPointClick) onPointClick(point.id)
       })
 
+      const cx = xScale(point.rs_score)
+      const cy = yScale(point.rs_momentum)
+
       dotGroup.append('circle')
-        .attr('cx', xScale(point.rs_score))
-        .attr('cy', yScale(point.rs_momentum))
+        .attr('cx', cx)
+        .attr('cy', cy)
         .attr('r', 6)
         .attr('fill', color)
         .attr('stroke', '#fff')
         .attr('stroke-width', 1.5)
 
-      // Label
+      // Label with collision avoidance
+      const shortName = shortenName(point.name)
+      const estWidth = shortName.length * 5.5
+      const { lx, ly } = findNonOverlappingPosition(cx, cy, estWidth)
+
       dotGroup.append('text')
-        .attr('x', xScale(point.rs_score) + 9)
-        .attr('y', yScale(point.rs_momentum) + 4)
+        .attr('x', lx)
+        .attr('y', ly)
         .attr('fill', '#1e293b')
         .attr('font-size', '10px')
         .attr('font-weight', '500')
-        .text(point.name)
+        .text(shortName)
     })
   }, [data, width, height, onPointClick])
 

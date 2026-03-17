@@ -17,7 +17,7 @@ const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
  */
 const ISO_NUMERIC_TO_CODE: Record<string, string> = {
   '840': 'US',
-  '826': 'GB',
+  '826': 'UK',
   '276': 'DE',
   '250': 'FR',
   '392': 'JP',
@@ -29,6 +29,11 @@ const ISO_NUMERIC_TO_CODE: Record<string, string> = {
   '036': 'AU',
   '076': 'BR',
   '124': 'CA',
+}
+
+/** Normalize country codes: backend uses 'UK', mock data uses 'GB' */
+function normalizeCountryCode(code: string): string {
+  return code === 'GB' ? 'UK' : code
 }
 
 const colorScale = scaleSequential(interpolateRdYlGn).domain([0, 100])
@@ -52,7 +57,7 @@ function WorldChoroplethInner({ data }: WorldChoroplethProps): JSX.Element {
   const scoreMap = new Map<string, RankingItem>()
   data.forEach((item) => {
     if (item.country) {
-      scoreMap.set(item.country, item)
+      scoreMap.set(normalizeCountryCode(item.country), item)
     }
   })
 
