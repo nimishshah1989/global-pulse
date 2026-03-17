@@ -34,10 +34,10 @@ $SSH "cd $PROJECT_DIR && echo 'POSTGRES_PASSWORD=compass_secure_2024' > .env"
 
 # Step 4: Build and start
 echo "Building containers..."
-$SSH "cd $PROJECT_DIR && docker-compose build --no-cache"
+$SSH "cd $PROJECT_DIR && docker compose build --no-cache"
 
 echo "Starting services..."
-$SSH "cd $PROJECT_DIR && docker-compose up -d"
+$SSH "cd $PROJECT_DIR && docker compose up -d"
 
 # Step 5: Wait and verify
 echo "Waiting for services to start..."
