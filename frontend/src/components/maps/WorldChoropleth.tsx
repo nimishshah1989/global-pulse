@@ -6,8 +6,7 @@ import {
   ZoomableGroup,
 } from 'react-simple-maps'
 import { useNavigate } from 'react-router-dom'
-import { scaleSequential } from 'd3-scale'
-import { interpolateRdYlGn } from 'd3-chromatic'
+import { scaleSequential, interpolateRdYlGn } from 'd3'
 import type { RankingItem } from '@/types/rs'
 
 const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
@@ -78,8 +77,8 @@ function WorldChoroplethInner({ data }: WorldChoroplethProps): JSX.Element {
                 const isoNumeric = geo.id as string
                 const countryCode = ISO_NUMERIC_TO_CODE[isoNumeric]
                 const item = countryCode ? scoreMap.get(countryCode) : undefined
-                const fillColor = item
-                  ? colorScale(item.adjusted_rs_score)
+                const fillColor: string = item
+                  ? (colorScale(item.adjusted_rs_score) ?? '#e2e8f0')
                   : '#e2e8f0'
 
                 return (
@@ -93,7 +92,7 @@ function WorldChoroplethInner({ data }: WorldChoroplethProps): JSX.Element {
                       default: { outline: 'none' },
                       hover: {
                         outline: 'none',
-                        fill: item ? fillColor : '#cbd5e1',
+                        fill: item ? fillColor : '#cbd5e1' as string,
                         strokeWidth: item ? 1.5 : 0.5,
                         cursor: item ? 'pointer' : 'default',
                       },
