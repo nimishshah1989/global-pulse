@@ -6,7 +6,6 @@ scores if the DB has no data (for tests and pre-seed operation).
 
 import hashlib
 import logging
-from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select, func
@@ -24,7 +23,7 @@ def _seed_float(instrument_id: str, salt: str = "") -> float:
     return int(digest[:8], 16) / 0xFFFFFFFF
 
 
-def _determine_quadrant(score: Decimal, momentum: Decimal) -> str:
+def _determine_quadrant(score: float, momentum: float) -> str:
     """Assign RRG quadrant based on score and momentum thresholds."""
     if score > 50 and momentum > 0:
         return "LEADING"
@@ -41,26 +40,26 @@ def _mock_rs_scores(instrument: dict[str, Any]) -> dict[str, Any]:
 
     # Adjusted RS score: 20-90 range
     raw = _seed_float(iid, "score")
-    adjusted_rs_score = Decimal(str(round(20 + raw * 70, 2)))
+    adjusted_rs_score = round(20 + raw * 70, 2)
 
     # RS momentum: -30 to +30
     mom_raw = _seed_float(iid, "momentum")
-    rs_momentum = Decimal(str(round(-30 + mom_raw * 60, 2)))
+    rs_momentum = round(-30 + mom_raw * 60, 2)
 
     quadrant = _determine_quadrant(adjusted_rs_score, rs_momentum)
 
     # Volume ratio: 0.5 to 2.0
     vol_raw = _seed_float(iid, "volume")
-    volume_ratio = Decimal(str(round(0.5 + vol_raw * 1.5, 3)))
+    volume_ratio = round(0.5 + vol_raw * 1.5, 3)
 
     # RS trend
     rs_trend = "OUTPERFORMING" if adjusted_rs_score > 50 else "UNDERPERFORMING"
 
     # Percentile fields: 0-100
-    rs_pct_1m = Decimal(str(round(_seed_float(iid, "1m") * 100, 2)))
-    rs_pct_3m = Decimal(str(round(_seed_float(iid, "3m") * 100, 2)))
-    rs_pct_6m = Decimal(str(round(_seed_float(iid, "6m") * 100, 2)))
-    rs_pct_12m = Decimal(str(round(_seed_float(iid, "12m") * 100, 2)))
+    rs_pct_1m = round(_seed_float(iid, "1m") * 100, 2)
+    rs_pct_3m = round(_seed_float(iid, "3m") * 100, 2)
+    rs_pct_6m = round(_seed_float(iid, "6m") * 100, 2)
+    rs_pct_12m = round(_seed_float(iid, "12m") * 100, 2)
 
     # Extension warning
     extension_warning = (
@@ -88,20 +87,20 @@ def _mock_rs_scores(instrument: dict[str, Any]) -> dict[str, Any]:
 
 def _rs_score_to_dict(score: RSScore, name: str) -> dict[str, Any]:
     """Convert an RSScore ORM model to a ranking dict."""
-    adjusted = Decimal(str(score.adjusted_rs_score)) if score.adjusted_rs_score is not None else Decimal("50")
-    momentum = Decimal(str(score.rs_momentum)) if score.rs_momentum is not None else Decimal("0")
+    adjusted = float(score.adjusted_rs_score) if score.adjusted_rs_score is not None else 50.0
+    momentum = float(score.rs_momentum) if score.rs_momentum is not None else 0.0
     return {
         "instrument_id": score.instrument_id,
         "name": name,
         "adjusted_rs_score": adjusted,
         "quadrant": score.quadrant or "LAGGING",
         "rs_momentum": momentum,
-        "volume_ratio": Decimal(str(score.volume_ratio)) if score.volume_ratio is not None else Decimal("1"),
+        "volume_ratio": float(score.volume_ratio) if score.volume_ratio is not None else 1.0,
         "rs_trend": score.rs_trend or "UNDERPERFORMING",
-        "rs_pct_1m": Decimal(str(score.rs_pct_1m)) if score.rs_pct_1m is not None else Decimal("50"),
-        "rs_pct_3m": Decimal(str(score.rs_pct_3m)) if score.rs_pct_3m is not None else Decimal("50"),
-        "rs_pct_6m": Decimal(str(score.rs_pct_6m)) if score.rs_pct_6m is not None else Decimal("50"),
-        "rs_pct_12m": Decimal(str(score.rs_pct_12m)) if score.rs_pct_12m is not None else Decimal("50"),
+        "rs_pct_1m": float(score.rs_pct_1m) if score.rs_pct_1m is not None else 50.0,
+        "rs_pct_3m": float(score.rs_pct_3m) if score.rs_pct_3m is not None else 50.0,
+        "rs_pct_6m": float(score.rs_pct_6m) if score.rs_pct_6m is not None else 50.0,
+        "rs_pct_12m": float(score.rs_pct_12m) if score.rs_pct_12m is not None else 50.0,
         "liquidity_tier": score.liquidity_tier or 2,
         "extension_warning": score.extension_warning or False,
     }

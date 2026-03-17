@@ -8,7 +8,6 @@ import hashlib
 import logging
 import math
 from datetime import date, timedelta
-from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select, func
@@ -26,7 +25,7 @@ def _seed_float(instrument_id: str, salt: str = "") -> float:
     return int(digest[:8], 16) / 0xFFFFFFFF
 
 
-def _determine_quadrant(score: Decimal, momentum: Decimal) -> str:
+def _determine_quadrant(score: float, momentum: float) -> str:
     """Assign RRG quadrant based on score and momentum thresholds."""
     if score > 50 and momentum > 0:
         return "LEADING"
@@ -55,8 +54,8 @@ def _generate_trail(
         score_offset = math.sin(phase + t) * 8
         momentum_offset = math.cos(phase + t) * 6
 
-        trail_score = Decimal(str(round(current_score - score_offset, 2)))
-        trail_momentum = Decimal(str(round(current_momentum - momentum_offset, 2)))
+        trail_score = round(current_score - score_offset, 2)
+        trail_momentum = round(current_momentum - momentum_offset, 2)
         trail_date = today - timedelta(weeks=week_offset)
 
         trail.append({
@@ -79,17 +78,15 @@ def _build_rrg_point(instrument: dict[str, Any]) -> dict[str, Any]:
     mom_raw = _seed_float(iid, "momentum")
     momentum = round(-30 + mom_raw * 60, 2)
 
-    score_dec = Decimal(str(score))
-    momentum_dec = Decimal(str(momentum))
-    quadrant = _determine_quadrant(score_dec, momentum_dec)
+    quadrant = _determine_quadrant(score, momentum)
 
     trail = _generate_trail(iid, score, momentum)
 
     return {
         "id": iid,
         "name": instrument["name"],
-        "rs_score": score_dec,
-        "rs_momentum": momentum_dec,
+        "rs_score": score,
+        "rs_momentum": momentum,
         "quadrant": quadrant,
         "trail": trail,
     }
@@ -105,8 +102,8 @@ def _build_rrg_from_db(
     same rotation simulation used by the mock generator.
     """
     latest = scores[0]  # most recent
-    rs_score = Decimal(str(latest.adjusted_rs_score)) if latest.adjusted_rs_score is not None else Decimal("50")
-    rs_momentum = Decimal(str(latest.rs_momentum)) if latest.rs_momentum is not None else Decimal("0")
+    rs_score = float(latest.adjusted_rs_score) if latest.adjusted_rs_score is not None else 50.0
+    rs_momentum = float(latest.rs_momentum) if latest.rs_momentum is not None else 0.0
     quadrant = latest.quadrant or _determine_quadrant(rs_score, rs_momentum)
 
     # Build trail from historical scores (weekly samples)
@@ -114,15 +111,15 @@ def _build_rrg_from_db(
     for s in scores:
         trail.append({
             "date": s.date,
-            "rs_score": Decimal(str(s.adjusted_rs_score)) if s.adjusted_rs_score is not None else Decimal("50"),
-            "rs_momentum": Decimal(str(s.rs_momentum)) if s.rs_momentum is not None else Decimal("0"),
+            "rs_score": float(s.adjusted_rs_score) if s.adjusted_rs_score is not None else 50.0,
+            "rs_momentum": float(s.rs_momentum) if s.rs_momentum is not None else 0.0,
         })
 
     trail.reverse()  # oldest first
 
     # Pad to 8 entries if needed using synthetic rotation
     if len(trail) < 8:
-        trail = _generate_trail(instrument.id, float(rs_score), float(rs_momentum), weeks=8)
+        trail = _generate_trail(instrument.id, rs_score, rs_momentum, weeks=8)
 
     return {
         "id": instrument.id,

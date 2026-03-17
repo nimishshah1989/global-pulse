@@ -7,7 +7,6 @@ of mock NAV history.
 
 import datetime
 import uuid
-from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 from engine.basket_engine import BasketEngine
@@ -22,8 +21,8 @@ SAMPLE_POS_INDA = uuid.UUID("33333333-3333-3333-3333-333333333333")
 
 def _build_sample_nav(num_days: int = 90) -> list[dict[str, Any]]:
     """Generate 90 days of plausible NAV history for the sample basket."""
-    nav = Decimal("100")
-    bench_nav = Decimal("100")
+    nav = 100.0
+    bench_nav = 100.0
     results: list[dict[str, Any]] = []
     base_date = datetime.date(2026, 3, 17) - datetime.timedelta(days=num_days)
 
@@ -34,19 +33,13 @@ def _build_sample_nav(num_days: int = 90) -> list[dict[str, Any]]:
             continue
 
         # Simulate slight upward drift with small oscillation
-        nav_change = Decimal(str(round(0.002 + 0.001 * (i % 7 - 3), 6)))
-        bench_change = Decimal(str(round(0.001 + 0.0005 * (i % 5 - 2), 6)))
+        nav_change = round(0.002 + 0.001 * (i % 7 - 3), 6)
+        bench_change = round(0.001 + 0.0005 * (i % 5 - 2), 6)
 
-        nav = nav * (Decimal("1") + nav_change)
-        nav = nav.quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
-        bench_nav = bench_nav * (Decimal("1") + bench_change)
-        bench_nav = bench_nav.quantize(
-            Decimal("0.000001"), rounding=ROUND_HALF_UP
-        )
+        nav = round(nav * (1.0 + nav_change), 6)
+        bench_nav = round(bench_nav * (1.0 + bench_change), 6)
 
-        rs_line = (nav / bench_nav * Decimal("100")).quantize(
-            Decimal("0.0001"), rounding=ROUND_HALF_UP
-        )
+        rs_line = round(nav / bench_nav * 100, 4)
 
         results.append({
             "basket_id": SAMPLE_BASKET_ID,
@@ -62,7 +55,7 @@ def _build_sample_nav(num_days: int = 90) -> list[dict[str, Any]]:
 def _build_sample_basket() -> dict[str, Any]:
     """Create the pre-populated sample basket."""
     now = datetime.datetime(2025, 12, 17, 10, 0, 0, tzinfo=datetime.timezone.utc)
-    weight = Decimal("0.333333")
+    weight = 0.333333
 
     return {
         "id": SAMPLE_BASKET_ID,
@@ -95,7 +88,7 @@ def _build_sample_basket() -> dict[str, Any]:
                 "id": SAMPLE_POS_INDA,
                 "basket_id": SAMPLE_BASKET_ID,
                 "instrument_id": "INDA_US",
-                "weight": Decimal("0.333334"),
+                "weight": 0.333334,
                 "added_at": now,
                 "removed_at": None,
                 "status": "active",
@@ -192,7 +185,7 @@ class BasketRepository:
             "id": pos_id,
             "basket_id": uuid.UUID(basket_id),
             "instrument_id": position["instrument_id"],
-            "weight": Decimal(str(position["weight"])),
+            "weight": float(position["weight"]),
             "added_at": now,
             "removed_at": None,
             "status": "active",
