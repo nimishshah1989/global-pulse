@@ -5,16 +5,25 @@ import QuadrantBadge from '@/components/common/QuadrantBadge'
 import PerformanceStats from '@/components/common/PerformanceStats'
 import CreateBasketModal from '@/components/common/CreateBasketModal'
 import BasketNAVChart from '@/components/charts/BasketNAVChart'
+import LoadingSkeleton from '@/components/common/LoadingSkeleton'
+import ErrorAlert from '@/components/common/ErrorAlert'
+import { useBaskets, useBasket, useCreateBasket, useRemovePosition } from '@/api/hooks/useBaskets'
 import {
   MOCK_BASKETS,
   MOCK_POSITION_DETAILS,
   MOCK_BASKET_PERFORMANCE,
   generateMockNAVHistory,
 } from '@/data/mockBasketData'
+import type { Basket } from '@/types/baskets'
 
 function BasketListView(): JSX.Element {
   const navigate = useNavigate()
   const [showModal, setShowModal] = useState(false)
+
+  const { data: basketsData, isLoading, error, refetch } = useBaskets()
+  const createBasketMutation = useCreateBasket()
+
+  const baskets = basketsData ?? MOCK_BASKETS
 
   function handleCreate(data: {
     name: string
@@ -22,8 +31,11 @@ function BasketListView(): JSX.Element {
     benchmark_id: string
     weighting_method: 'equal' | 'manual' | 'rs_weighted'
   }): void {
-    console.log('Create basket:', data)
-    setShowModal(false)
+    createBasketMutation.mutate(data, {
+      onSuccess: () => {
+        setShowModal(false)
+      },
+    })
   }
 
   return (
@@ -43,33 +55,44 @@ function BasketListView(): JSX.Element {
         </button>
       </div>
 
-      <div className="grid gap-4">
-        {MOCK_BASKETS.map((basket) => (
-          <div
-            key={basket.id}
-            onClick={() => navigate(`/compass/baskets/${basket.id}`)}
-            className="cursor-pointer rounded-xl border border-slate-200 bg-white p-5 transition-shadow hover:shadow-md"
-          >
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="font-semibold text-slate-900">{basket.name}</h3>
-                {basket.description && (
-                  <p className="mt-1 text-sm text-slate-500">{basket.description}</p>
-                )}
+      {error && (
+        <ErrorAlert
+          message={error instanceof Error ? error.message : 'Unknown error'}
+          onRetry={() => void refetch()}
+        />
+      )}
+
+      {isLoading ? (
+        <LoadingSkeleton type="card" rows={3} />
+      ) : (
+        <div className="grid gap-4">
+          {baskets.map((basket: Basket) => (
+            <div
+              key={basket.id}
+              onClick={() => navigate(`/compass/baskets/${basket.id}`)}
+              className="cursor-pointer rounded-xl border border-slate-200 bg-white p-5 transition-shadow hover:shadow-md"
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="font-semibold text-slate-900">{basket.name}</h3>
+                  {basket.description && (
+                    <p className="mt-1 text-sm text-slate-500">{basket.description}</p>
+                  )}
+                </div>
+                <span className="rounded-full bg-teal-50 px-3 py-0.5 text-xs font-semibold text-teal-700">
+                  {basket.status}
+                </span>
               </div>
-              <span className="rounded-full bg-teal-50 px-3 py-0.5 text-xs font-semibold text-teal-700">
-                {basket.status}
-              </span>
+              <div className="mt-3 flex items-center gap-6 text-sm text-slate-600">
+                <span>Created {formatDate(basket.created_at)}</span>
+                <span className="font-mono">
+                  Weighting: {basket.weighting_method}
+                </span>
+              </div>
             </div>
-            <div className="mt-3 flex items-center gap-6 text-sm text-slate-600">
-              <span>Created {formatDate(basket.created_at)}</span>
-              <span className="font-mono">
-                Weighting: {basket.weighting_method}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       <CreateBasketModal
         isOpen={showModal}
@@ -81,11 +104,34 @@ function BasketListView(): JSX.Element {
 }
 
 function BasketDetailView({ basketId }: { basketId: string }): JSX.Element {
-  const basket = MOCK_BASKETS.find((b) => b.id === basketId) ?? MOCK_BASKETS[0]
+  const { data: basketData, isLoading, error, refetch } = useBasket(basketId)
+  const removePositionMutation = useRemovePosition()
+
+  const basket = basketData ?? MOCK_BASKETS.find((b) => b.id === basketId) ?? MOCK_BASKETS[0]
   const navHistory = useMemo(() => generateMockNAVHistory(), [])
+
+  function handleRemovePosition(positionId: string): void {
+    removePositionMutation.mutate({ basketId, positionId })
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-5">
+        <LoadingSkeleton type="chart" />
+        <LoadingSkeleton type="table" rows={4} />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5">
+      {error && (
+        <ErrorAlert
+          message={error instanceof Error ? error.message : 'Unknown error'}
+          onRetry={() => void refetch()}
+        />
+      )}
+
       <div>
         <nav className="flex items-center gap-2 text-sm text-slate-500">
           <a href="/compass/baskets" className="hover:text-teal-600">Baskets</a>
@@ -160,7 +206,10 @@ function BasketDetailView({ basketId }: { basketId: string }): JSX.Element {
                     <QuadrantBadge quadrant={pos.quadrant} />
                   </td>
                   <td className="px-4 py-3">
-                    <button className="text-xs font-medium text-red-500 hover:text-red-700">
+                    <button
+                      onClick={() => handleRemovePosition(pos.instrument_id)}
+                      className="text-xs font-medium text-red-500 hover:text-red-700"
+                    >
                       Remove
                     </button>
                   </td>

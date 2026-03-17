@@ -2,7 +2,10 @@ import { useState, useMemo } from 'react'
 import type { SignalType } from '@/types/opportunities'
 import SignalTypeBadge from '@/components/common/SignalTypeBadge'
 import AlignmentCard from '@/components/common/AlignmentCard'
+import LoadingSkeleton from '@/components/common/LoadingSkeleton'
+import ErrorAlert from '@/components/common/ErrorAlert'
 import { formatDate } from '@/utils/format'
+import { useOpportunities, useMultiLevelAlignments } from '@/api/hooks/useOpportunities'
 import { MOCK_ALIGNMENTS, MOCK_OPPORTUNITIES } from '@/data/mockOpportunityData'
 
 const SIGNAL_TYPE_OPTIONS: { value: SignalType | ''; label: string }[] = [
@@ -27,16 +30,32 @@ const LEVEL_OPTIONS = [
 export default function OpportunityScanner(): JSX.Element {
   const [signalTypeFilter, setSignalTypeFilter] = useState<SignalType | ''>('')
   const [convictionMin, setConvictionMin] = useState(0)
-  const [_levelFilter, setLevelFilter] = useState('')
+  const [levelFilter, setLevelFilter] = useState('')
+
+  const opportunityFilters = useMemo(() => {
+    const filters: Record<string, unknown> = {}
+    if (signalTypeFilter) filters.signal_type = signalTypeFilter
+    if (convictionMin > 0) filters.min_conviction = convictionMin
+    if (levelFilter) filters.hierarchy_level = Number(levelFilter)
+    return filters.signal_type || filters.min_conviction || filters.hierarchy_level
+      ? filters as { signal_type?: SignalType; min_conviction?: number; hierarchy_level?: number }
+      : undefined
+  }, [signalTypeFilter, convictionMin, levelFilter])
+
+  const { data: opportunitiesData, isLoading: oppsLoading, error: oppsError, refetch: refetchOpps } = useOpportunities(opportunityFilters)
+  const { data: alignmentsData, isLoading: alignmentsLoading } = useMultiLevelAlignments()
+
+  const opportunities = opportunitiesData ?? MOCK_OPPORTUNITIES
+  const alignments = alignmentsData ?? MOCK_ALIGNMENTS
 
   const nonAlignmentSignals = useMemo(() => {
-    return MOCK_OPPORTUNITIES.filter((opp) => {
+    return opportunities.filter((opp) => {
       if (opp.signal_type === 'multi_level_alignment') return false
       if (signalTypeFilter && opp.signal_type !== signalTypeFilter) return false
       if (opp.conviction_score < convictionMin) return false
       return true
     })
-  }, [signalTypeFilter, convictionMin])
+  }, [opportunities, signalTypeFilter, convictionMin])
 
   const showAlignments =
     signalTypeFilter === '' || signalTypeFilter === 'multi_level_alignment'
@@ -51,6 +70,13 @@ export default function OpportunityScanner(): JSX.Element {
           What should I be paying attention to today?
         </p>
       </div>
+
+      {oppsError && (
+        <ErrorAlert
+          message={oppsError instanceof Error ? oppsError.message : 'Unknown error'}
+          onRetry={() => void refetchOpps()}
+        />
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white px-5 py-3">
@@ -76,7 +102,7 @@ export default function OpportunityScanner(): JSX.Element {
             Level
           </span>
           <select
-            value={_levelFilter}
+            value={levelFilter}
             onChange={(e) => setLevelFilter(e.target.value)}
             className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
           >
@@ -105,81 +131,91 @@ export default function OpportunityScanner(): JSX.Element {
       </div>
 
       {/* Multi-level alignment cards */}
-      {showAlignments && MOCK_ALIGNMENTS.length > 0 && (
+      {showAlignments && (
         <div className="space-y-3">
           <h2 className="text-lg font-semibold text-slate-900">
             Multi-Level Alignments
           </h2>
-          <div className="grid gap-4 md:grid-cols-2">
-            {MOCK_ALIGNMENTS.filter(
-              (a) => a.conviction_score >= convictionMin,
-            ).map((alignment) => (
-              <AlignmentCard key={alignment.id} opportunity={alignment} />
-            ))}
-          </div>
+          {alignmentsLoading ? (
+            <LoadingSkeleton type="card" rows={2} />
+          ) : (
+            alignments.length > 0 && (
+              <div className="grid gap-4 md:grid-cols-2">
+                {alignments.filter(
+                  (a) => a.conviction_score >= convictionMin,
+                ).map((alignment) => (
+                  <AlignmentCard key={alignment.id} opportunity={alignment} />
+                ))}
+              </div>
+            )
+          )}
         </div>
       )}
 
       {/* Signal feed table */}
       <div>
         <h2 className="mb-3 text-lg font-semibold text-slate-900">Signal Feed</h2>
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Date
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Instrument
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Signal Type
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Conviction
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Description
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {nonAlignmentSignals.map((opp) => (
-                <tr
-                  key={opp.id}
-                  className="cursor-pointer transition-colors hover:bg-slate-50"
-                >
-                  <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600">
-                    {formatDate(opp.date)}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-900">
-                    {opp.instrument_name}
-                  </td>
-                  <td className="px-4 py-3">
-                    <SignalTypeBadge signalType={opp.signal_type} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`font-mono font-semibold ${
-                        opp.conviction_score >= 70
-                          ? 'text-emerald-600'
-                          : opp.conviction_score >= 50
-                            ? 'text-amber-600'
-                            : 'text-slate-500'
-                      }`}
-                    >
-                      {opp.conviction_score}
-                    </span>
-                  </td>
-                  <td className="max-w-xs truncate px-4 py-3 text-slate-600">
-                    {opp.description}
-                  </td>
+        {oppsLoading ? (
+          <LoadingSkeleton type="table" rows={8} />
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <table className="w-full text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Date
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Instrument
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Signal Type
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Conviction
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Description
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {nonAlignmentSignals.map((opp) => (
+                  <tr
+                    key={opp.id}
+                    className="cursor-pointer transition-colors hover:bg-slate-50"
+                  >
+                    <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600">
+                      {formatDate(opp.date)}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-900">
+                      {opp.instrument_name}
+                    </td>
+                    <td className="px-4 py-3">
+                      <SignalTypeBadge signalType={opp.signal_type} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`font-mono font-semibold ${
+                          opp.conviction_score >= 70
+                            ? 'text-emerald-600'
+                            : opp.conviction_score >= 50
+                              ? 'text-amber-600'
+                              : 'text-slate-500'
+                        }`}
+                      >
+                        {opp.conviction_score}
+                      </span>
+                    </td>
+                    <td className="max-w-xs truncate px-4 py-3 text-slate-600">
+                      {opp.description}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )

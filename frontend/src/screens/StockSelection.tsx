@@ -5,6 +5,10 @@ import Breadcrumb from '@/components/layout/Breadcrumb'
 import FilterBar from '@/components/common/FilterBar'
 import StockRankingTable from '@/components/tables/StockRankingTable'
 import RRGScatter from '@/components/charts/RRGScatter'
+import LoadingSkeleton from '@/components/common/LoadingSkeleton'
+import ErrorAlert from '@/components/common/ErrorAlert'
+import { useStockRankings } from '@/api/hooks/useRankings'
+import { useStockRRG } from '@/api/hooks/useRRG'
 import { MOCK_STOCK_DATA, getMockStockRRGData } from '@/data/mockStockData'
 
 function formatSectorName(slug: string): string {
@@ -20,12 +24,21 @@ export default function StockSelection(): JSX.Element {
     sectorSlug: string
   }>()
 
+  const code = countryCode ?? ''
+  const sector = sectorSlug ?? ''
+
+  const { data: stockData, isLoading: stocksLoading, error: stocksError, refetch: refetchStocks } = useStockRankings(code, sector)
+  const { data: rrgApiData, isLoading: rrgLoading } = useStockRRG(code, sector)
+
+  const stocks = stockData ?? MOCK_STOCK_DATA
+  const rrgData = rrgApiData ?? getMockStockRRGData()
+
   const [selectedQuadrants, setSelectedQuadrants] = useState<Quadrant[]>([])
   const [liquidityTier, setLiquidityTier] = useState<number | null>(null)
   const [rsMinimum, setRsMinimum] = useState(0)
 
   const filteredStocks = useMemo(() => {
-    return MOCK_STOCK_DATA.filter((stock) => {
+    return stocks.filter((stock) => {
       if (selectedQuadrants.length > 0 && !selectedQuadrants.includes(stock.quadrant)) {
         return false
       }
@@ -37,9 +50,7 @@ export default function StockSelection(): JSX.Element {
       }
       return true
     })
-  }, [selectedQuadrants, liquidityTier, rsMinimum])
-
-  const rrgData = useMemo(() => getMockStockRRGData(), [])
+  }, [stocks, selectedQuadrants, liquidityTier, rsMinimum])
 
   function handleAddToBasket(item: RankingItem): void {
     // Placeholder — would open basket selector modal
@@ -58,6 +69,13 @@ export default function StockSelection(): JSX.Element {
         </p>
       </div>
 
+      {stocksError && (
+        <ErrorAlert
+          message={stocksError instanceof Error ? stocksError.message : 'Unknown error'}
+          onRetry={() => void refetchStocks()}
+        />
+      )}
+
       <FilterBar
         selectedQuadrants={selectedQuadrants}
         onQuadrantsChange={setSelectedQuadrants}
@@ -67,14 +85,22 @@ export default function StockSelection(): JSX.Element {
         onRsMinimumChange={setRsMinimum}
       />
 
-      <StockRankingTable
-        data={filteredStocks}
-        onAddToBasket={handleAddToBasket}
-      />
+      {stocksLoading ? (
+        <LoadingSkeleton type="table" rows={12} />
+      ) : (
+        <StockRankingTable
+          data={filteredStocks}
+          onAddToBasket={handleAddToBasket}
+        />
+      )}
 
       <div>
         <h2 className="mb-2 text-lg font-semibold text-slate-900">Stock RRG</h2>
-        <RRGScatter data={rrgData} height={350} />
+        {rrgLoading ? (
+          <LoadingSkeleton type="chart" />
+        ) : (
+          <RRGScatter data={rrgData} height={350} />
+        )}
       </div>
     </div>
   )

@@ -3,6 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom'
 import RRGScatter from '@/components/charts/RRGScatter'
 import RSRankingTable from '@/components/tables/RSRankingTable'
 import RSLineChart from '@/components/charts/RSLineChart'
+import RegimeBanner from '@/components/common/RegimeBanner'
+import LoadingSkeleton from '@/components/common/LoadingSkeleton'
+import ErrorAlert from '@/components/common/ErrorAlert'
+import { useSectorRankings } from '@/api/hooks/useRankings'
+import { useSectorRRG } from '@/api/hooks/useRRG'
+import { useRegime } from '@/api/hooks/useRegime'
 import { MOCK_SECTOR_DATA, getMockRRGData, getMockRSLineData } from '@/data/mockSectorData'
 import { COUNTRY_NAMES } from '@/data/mockCountryData'
 import type { RankingItem } from '@/types/rs'
@@ -12,9 +18,15 @@ export default function CountryDeepDive(): JSX.Element {
   const navigate = useNavigate()
   const code = countryCode ?? 'US'
 
+  const { data: sectorData, isLoading: sectorsLoading, error: sectorsError, refetch: refetchSectors } = useSectorRankings(code)
+  const { data: rrgApiData, isLoading: rrgLoading } = useSectorRRG(code)
+  const { data: regimeData } = useRegime()
+
   const countryName = COUNTRY_NAMES[code] ?? code
-  const sectors = MOCK_SECTOR_DATA[code] ?? MOCK_SECTOR_DATA['US'] ?? []
-  const rrgData = getMockRRGData(code in MOCK_SECTOR_DATA ? code : 'US')
+
+  const mockSectors = MOCK_SECTOR_DATA[code] ?? MOCK_SECTOR_DATA['US'] ?? []
+  const sectors = sectorData ?? mockSectors
+  const rrgData = rrgApiData ?? getMockRRGData(code in MOCK_SECTOR_DATA ? code : 'US')
   const rsLineData = getMockRSLineData()
 
   const [selectedSector, setSelectedSector] = useState<string>(
@@ -44,28 +56,47 @@ export default function CountryDeepDive(): JSX.Element {
         {countryName} — Sector Rotation
       </h1>
 
+      {regimeData && (
+        <RegimeBanner regime={regimeData.regime} />
+      )}
+
+      {sectorsError && (
+        <ErrorAlert
+          message={sectorsError instanceof Error ? sectorsError.message : 'Unknown error'}
+          onRetry={() => void refetchSectors()}
+        />
+      )}
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         <div className="lg:col-span-2">
           <h2 className="mb-3 text-sm font-semibold text-slate-700">
             Sector Rankings
           </h2>
-          <RSRankingTable
-            data={sectors}
-            onRowClick={handleSectorSelect}
-            showSector
-          />
+          {sectorsLoading ? (
+            <LoadingSkeleton type="table" rows={8} />
+          ) : (
+            <RSRankingTable
+              data={sectors}
+              onRowClick={handleSectorSelect}
+              showSector
+            />
+          )}
         </div>
 
         <div className="lg:col-span-3">
           <h2 className="mb-3 text-sm font-semibold text-slate-700">
             Relative Rotation Graph
           </h2>
-          <RRGScatter
-            data={rrgData}
-            width={580}
-            height={450}
-            onPointClick={handleRRGPointClick}
-          />
+          {rrgLoading ? (
+            <LoadingSkeleton type="chart" />
+          ) : (
+            <RRGScatter
+              data={rrgData}
+              width={580}
+              height={450}
+              onPointClick={handleRRGPointClick}
+            />
+          )}
         </div>
       </div>
 

@@ -16,8 +16,8 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    # Required — no default, will fail if missing
-    DATABASE_URL: str
+    # Default to SQLite for development; production uses PostgreSQL via env var
+    DATABASE_URL: str = "sqlite+aiosqlite:///./momentum_compass.db"
 
     # Optional with defaults
     REDIS_URL: str = "redis://localhost:6379"

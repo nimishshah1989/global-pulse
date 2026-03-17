@@ -33,6 +33,10 @@ QA_REPORT.md
 # Data cache
 data/stooq_bulk/
 data/cache/
+backend/data/fetched/
+
+# SQLite databases
+*.db
 
 # Testing
 coverage/

@@ -3,8 +3,10 @@
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from db.session import get_db
 from models.common import ApiResponse, Meta
 from models.rs_scores import RankingItem
 from repositories.instrument_repo import InstrumentRepository
@@ -15,18 +17,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/rankings", tags=["rankings"])
 
 
-def _get_ranking_service() -> RankingService:
-    """Build the ranking service with its dependencies."""
-    instrument_repo = InstrumentRepository()
-    ranking_repo = RankingRepository()
+def _get_ranking_service(session: AsyncSession) -> RankingService:
+    """Build the ranking service with DB-backed repositories."""
+    instrument_repo = InstrumentRepository(session)
+    ranking_repo = RankingRepository(session)
     return RankingService(ranking_repo, instrument_repo)
 
 
 @router.get("/countries")
-async def get_country_rankings() -> ApiResponse[list[RankingItem]]:
+async def get_country_rankings(
+    session: AsyncSession = Depends(get_db),
+) -> ApiResponse[list[RankingItem]]:
     """Return RS rankings for all country indices, sorted by score descending."""
     try:
-        service = _get_ranking_service()
+        service = _get_ranking_service(session)
         items = await service.get_country_rankings()
         return ApiResponse(
             data=items,
@@ -41,10 +45,13 @@ async def get_country_rankings() -> ApiResponse[list[RankingItem]]:
 
 
 @router.get("/sectors/{country_code}")
-async def get_sector_rankings(country_code: str) -> ApiResponse[list[RankingItem]]:
+async def get_sector_rankings(
+    country_code: str,
+    session: AsyncSession = Depends(get_db),
+) -> ApiResponse[list[RankingItem]]:
     """Return RS rankings for sectors within a country."""
     try:
-        service = _get_ranking_service()
+        service = _get_ranking_service(session)
         items = await service.get_sector_rankings(country_code)
         return ApiResponse(
             data=items,
@@ -62,11 +69,13 @@ async def get_sector_rankings(country_code: str) -> ApiResponse[list[RankingItem
 
 @router.get("/stocks/{country_code}/{sector}")
 async def get_stock_rankings(
-    country_code: str, sector: str
+    country_code: str,
+    sector: str,
+    session: AsyncSession = Depends(get_db),
 ) -> ApiResponse[list[RankingItem]]:
     """Return RS rankings for stocks in a country+sector."""
     try:
-        service = _get_ranking_service()
+        service = _get_ranking_service(session)
         items = await service.get_stock_rankings(country_code, sector)
         return ApiResponse(
             data=items,
@@ -85,10 +94,12 @@ async def get_stock_rankings(
 
 
 @router.get("/global-sectors")
-async def get_global_sector_rankings() -> ApiResponse[list[RankingItem]]:
+async def get_global_sector_rankings(
+    session: AsyncSession = Depends(get_db),
+) -> ApiResponse[list[RankingItem]]:
     """Return RS rankings for global sector ETFs."""
     try:
-        service = _get_ranking_service()
+        service = _get_ranking_service(session)
         items = await service.get_global_sector_rankings()
         return ApiResponse(
             data=items,

@@ -3,8 +3,10 @@
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from db.session import get_db
 from models.common import ApiResponse, Meta
 from models.rs_scores import RRGDataPoint
 from repositories.rrg_repo import RRGRepository
@@ -14,17 +16,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/rrg", tags=["rrg"])
 
 
-def _get_rrg_service() -> RRGService:
-    """Build the RRG service with its dependencies."""
-    rrg_repo = RRGRepository()
+def _get_rrg_service(session: AsyncSession) -> RRGService:
+    """Build the RRG service with DB-backed repository."""
+    rrg_repo = RRGRepository(session)
     return RRGService(rrg_repo)
 
 
 @router.get("/countries")
-async def get_country_rrg() -> ApiResponse[list[RRGDataPoint]]:
+async def get_country_rrg(
+    session: AsyncSession = Depends(get_db),
+) -> ApiResponse[list[RRGDataPoint]]:
     """Return RRG scatter data for all country indices."""
     try:
-        service = _get_rrg_service()
+        service = _get_rrg_service(session)
         items = await service.get_country_rrg()
         return ApiResponse(
             data=items,
@@ -39,10 +43,13 @@ async def get_country_rrg() -> ApiResponse[list[RRGDataPoint]]:
 
 
 @router.get("/sectors/{country_code}")
-async def get_sector_rrg(country_code: str) -> ApiResponse[list[RRGDataPoint]]:
+async def get_sector_rrg(
+    country_code: str,
+    session: AsyncSession = Depends(get_db),
+) -> ApiResponse[list[RRGDataPoint]]:
     """Return RRG scatter data for sectors within a country."""
     try:
-        service = _get_rrg_service()
+        service = _get_rrg_service(session)
         items = await service.get_sector_rrg(country_code)
         return ApiResponse(
             data=items,
@@ -60,11 +67,13 @@ async def get_sector_rrg(country_code: str) -> ApiResponse[list[RRGDataPoint]]:
 
 @router.get("/stocks/{country_code}/{sector}")
 async def get_stock_rrg(
-    country_code: str, sector: str
+    country_code: str,
+    sector: str,
+    session: AsyncSession = Depends(get_db),
 ) -> ApiResponse[list[RRGDataPoint]]:
     """Return RRG scatter data for stocks in a country+sector."""
     try:
-        service = _get_rrg_service()
+        service = _get_rrg_service(session)
         items = await service.get_stock_rrg(country_code, sector)
         return ApiResponse(
             data=items,

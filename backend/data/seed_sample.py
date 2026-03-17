@@ -179,14 +179,8 @@ async def seed_sample_to_db(
         Total count of rows inserted.
     """
     insert_sql = text("""
-        INSERT INTO prices (instrument_id, date, open, high, low, close, volume)
+        INSERT OR REPLACE INTO prices (instrument_id, date, open, high, low, close, volume)
         VALUES (:instrument_id, :date, :open, :high, :low, :close, :volume)
-        ON CONFLICT (instrument_id, date) DO UPDATE SET
-            open = EXCLUDED.open,
-            high = EXCLUDED.high,
-            low = EXCLUDED.low,
-            close = EXCLUDED.close,
-            volume = EXCLUDED.volume
     """)
 
     total_rows = 0

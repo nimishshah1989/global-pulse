@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.baskets import router as baskets_router
+from api.instruments import router as instruments_router
 from api.opportunities import router as opportunities_router
 from api.rankings import router as rankings_router
 from api.rrg import router as rrg_router
@@ -27,10 +28,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     when PostgreSQL is unavailable (JSON-backed repos still work).
     """
     try:
-        from db.session import engine
+        from db.session import get_engine
         from sqlalchemy import text
 
-        async with engine.connect() as conn:
+        eng = get_engine()
+        async with eng.connect() as conn:
             await conn.execute(text("SELECT 1"))
         logger.info("Database connection validated successfully.")
     except Exception as exc:
@@ -42,9 +44,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
     try:
-        from db.session import engine
+        from db.session import get_engine
 
-        await engine.dispose()
+        await get_engine().dispose()
         logger.info("Database engine disposed.")
     except Exception:
         pass
@@ -69,6 +71,7 @@ if settings.is_development:
 
 # Register routers
 app.include_router(system_router)
+app.include_router(instruments_router)
 app.include_router(rankings_router)
 app.include_router(rrg_router)
 app.include_router(baskets_router)

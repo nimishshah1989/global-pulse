@@ -1,6 +1,7 @@
 """SQLAlchemy ORM models matching the Momentum Compass database schema.
 
 All financial fields use Numeric (never Float) to avoid precision issues.
+Compatible with both SQLite (development) and PostgreSQL (production).
 """
 
 import uuid
@@ -16,8 +17,9 @@ from sqlalchemy import (
     Numeric,
     Text,
     BigInteger,
+    JSON,
+    String,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -48,13 +50,13 @@ class Instrument(Base):
     liquidity_tier: Mapped[int | None] = mapped_column(Integer, nullable=True, default=2)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     metadata_: Mapped[dict | None] = mapped_column(
-        "metadata", JSONB, nullable=True
+        "metadata", JSON, nullable=True
     )
 
     # Relationships
     benchmark = relationship("Instrument", remote_side="Instrument.id", lazy="selectin")
-    prices = relationship("Price", back_populates="instrument", lazy="selectin")
-    rs_scores = relationship("RSScore", back_populates="instrument", lazy="selectin")
+    prices = relationship("Price", back_populates="instrument", lazy="noload")
+    rs_scores = relationship("RSScore", back_populates="instrument", lazy="noload")
 
     __table_args__ = (
         CheckConstraint("source IN ('stooq', 'yfinance')", name="ck_instrument_source"),
@@ -150,8 +152,8 @@ class Basket(Base):
 
     __tablename__ = "baskets"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -159,7 +161,7 @@ class Basket(Base):
         Text, ForeignKey("instruments.id"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow
+        DateTime, default=datetime.utcnow
     )
     status: Mapped[str] = mapped_column(Text, default="active")
     weighting_method: Mapped[str] = mapped_column(Text, default="equal")
@@ -184,21 +186,21 @@ class BasketPosition(Base):
 
     __tablename__ = "basket_positions"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
-    basket_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("baskets.id"), nullable=False
+    basket_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("baskets.id"), nullable=False
     )
     instrument_id: Mapped[str] = mapped_column(
         Text, ForeignKey("instruments.id"), nullable=False
     )
     weight: Mapped[float] = mapped_column(Numeric(8, 6), nullable=False)
     added_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow
+        DateTime, default=datetime.utcnow
     )
     removed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        DateTime, nullable=True
     )
     status: Mapped[str] = mapped_column(Text, default="active")
 
@@ -211,8 +213,8 @@ class BasketNAV(Base):
 
     __tablename__ = "basket_nav"
 
-    basket_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("baskets.id"), primary_key=True
+    basket_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("baskets.id"), primary_key=True
     )
     date: Mapped[date] = mapped_column(Date, primary_key=True)
     nav: Mapped[float] = mapped_column(Numeric(14, 6), nullable=False)
@@ -229,8 +231,8 @@ class Opportunity(Base):
 
     __tablename__ = "opportunities"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     instrument_id: Mapped[str] = mapped_column(
         Text, ForeignKey("instruments.id"), nullable=False
@@ -242,10 +244,10 @@ class Opportunity(Base):
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_: Mapped[dict | None] = mapped_column(
-        "metadata", JSONB, nullable=True
+        "metadata", JSON, nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow
+        DateTime, default=datetime.utcnow
     )
 
     instrument = relationship("Instrument", lazy="selectin")
