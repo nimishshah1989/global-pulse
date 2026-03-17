@@ -6,14 +6,13 @@ Pre-populated with representative samples of each signal type.
 
 import datetime
 import uuid
-from decimal import Decimal
 from typing import Any
 
 
 def _make_opportunity(
     instrument_id: str,
     signal_type: str,
-    conviction_score: Decimal,
+    conviction_score: float,
     description: str,
     metadata: dict[str, Any] | None = None,
     days_ago: int = 0,
@@ -41,21 +40,21 @@ def _build_mock_opportunities() -> list[dict[str, Any]]:
     return [
         # 3 quadrant_entry_leading signals
         _make_opportunity(
-            "EWJ_US", "quadrant_entry_leading", Decimal("78.50"),
+            "EWJ_US", "quadrant_entry_leading", 78.50,
             "EWJ_US entered LEADING quadrant (from IMPROVING)",
             {"previous_quadrant": "IMPROVING", "current_quadrant": "LEADING",
              "adjusted_rs_score": "78.50", "rs_momentum": "12.30"},
             days_ago=0,
         ),
         _make_opportunity(
-            "XLK_US", "quadrant_entry_leading", Decimal("82.15"),
+            "XLK_US", "quadrant_entry_leading", 82.15,
             "XLK_US entered LEADING quadrant (from WEAKENING)",
             {"previous_quadrant": "WEAKENING", "current_quadrant": "LEADING",
              "adjusted_rs_score": "82.15", "rs_momentum": "8.40"},
             days_ago=1,
         ),
         _make_opportunity(
-            "EWT_US", "quadrant_entry_leading", Decimal("71.30"),
+            "EWT_US", "quadrant_entry_leading", 71.30,
             "EWT_US entered LEADING quadrant (from IMPROVING)",
             {"previous_quadrant": "IMPROVING", "current_quadrant": "LEADING",
              "adjusted_rs_score": "71.30", "rs_momentum": "15.60"},
@@ -63,14 +62,14 @@ def _build_mock_opportunities() -> list[dict[str, Any]]:
         ),
         # 2 volume_breakout signals
         _make_opportunity(
-            "INDA_US", "volume_breakout", Decimal("74.25"),
+            "INDA_US", "volume_breakout", 74.25,
             "INDA_US RS turning positive with volume 1.8x average",
             {"rs_momentum": "5.20", "volume_ratio": "1.800",
              "adjusted_rs_score": "74.25"},
             days_ago=0,
         ),
         _make_opportunity(
-            "XLE_US", "volume_breakout", Decimal("68.90"),
+            "XLE_US", "volume_breakout", 68.90,
             "XLE_US RS turning positive with volume 1.6x average",
             {"rs_momentum": "3.10", "volume_ratio": "1.600",
              "adjusted_rs_score": "68.90"},
@@ -78,7 +77,7 @@ def _build_mock_opportunities() -> list[dict[str, Any]]:
         ),
         # 1 multi_level_alignment (India -> NIFTY Metal -> Tata Steel)
         _make_opportunity(
-            "TATASTEEL_IN", "multi_level_alignment", Decimal("72.40"),
+            "TATASTEEL_IN", "multi_level_alignment", 72.40,
             "India LEADING globally -> NIFTY Metal LEADING in India -> "
             "Tata Steel LEADING in NIFTY Metal",
             {
@@ -96,20 +95,20 @@ def _build_mock_opportunities() -> list[dict[str, Any]]:
         ),
         # 1 regime_change
         _make_opportunity(
-            "ACWI_US", "regime_change", Decimal("95.00"),
+            "ACWI_US", "regime_change", 95.00,
             "Global regime changed to RISK_OFF — ACWI crossed below 200-day MA",
             {"previous_regime": "RISK_ON", "current_regime": "RISK_OFF"},
             days_ago=5,
         ),
         # 2 extension_alerts
         _make_opportunity(
-            "XLK_US", "extension_alert", Decimal("88.50"),
+            "XLK_US", "extension_alert", 88.50,
             "XLK_US extended — RS in top 5% across all timeframes",
             {"rs_pct_3m": "97.20", "rs_pct_6m": "96.80", "rs_pct_12m": "93.10"},
             days_ago=0,
         ),
         _make_opportunity(
-            "EWJ_US", "extension_alert", Decimal("79.00"),
+            "EWJ_US", "extension_alert", 79.00,
             "EWJ_US extended — RS in top 5% across all timeframes",
             {"rs_pct_3m": "96.50", "rs_pct_6m": "95.30", "rs_pct_12m": "91.40"},
             days_ago=1,
@@ -149,9 +148,8 @@ class OpportunityRepository:
             results = [o for o in results if o["signal_type"] == signal_type]
 
         if min_conviction is not None:
-            threshold = Decimal(str(min_conviction))
             results = [
-                o for o in results if o["conviction_score"] >= threshold
+                o for o in results if o["conviction_score"] >= min_conviction
             ]
 
         results.sort(
