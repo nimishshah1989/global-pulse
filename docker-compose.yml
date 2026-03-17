@@ -38,7 +38,7 @@ services:
     container_name: compass-backend
     restart: unless-stopped
     ports:
-      - "8008:8000"
+      - "8009:8000"
     env_file: ./backend/.env
     environment:
       - DATABASE_URL=postgresql+asyncpg://compass:${POSTGRES_PASSWORD}@db:5432/momentum_compass
@@ -61,7 +61,7 @@ services:
     container_name: compass-frontend
     restart: unless-stopped
     ports:
-      - "8108:80"
+      - "8109:80"
     depends_on:
       backend:
         condition: service_healthy

@@ -60,7 +60,7 @@ fi"
 
 # Step 7: Health check
 echo "Running health check..."
-HEALTH=$($SSH "curl -s http://localhost:8008/health" 2>/dev/null || echo '{"status":"error"}')
+HEALTH=$($SSH "curl -s http://localhost:8009/health" 2>/dev/null || echo '{"status":"error"}')
 echo "Backend health: $HEALTH"
 
 echo ""
