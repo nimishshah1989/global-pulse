@@ -1,13 +1,12 @@
-"""Momentum Compass API — FastAPI application entry point."""
+"""Momentum Compass API -- FastAPI application entry point."""
 
 import logging
-from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 
 from api.baskets import router as baskets_router
 from api.opportunities import router as opportunities_router
@@ -15,7 +14,6 @@ from api.rankings import router as rankings_router
 from api.rrg import router as rrg_router
 from api.system import router as system_router
 from config import get_settings
-from db.session import engine
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -23,19 +21,33 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Validate database connection on startup, dispose engine on shutdown."""
+    """Application startup/shutdown lifecycle.
+
+    Attempts database connection validation but falls back gracefully
+    when PostgreSQL is unavailable (JSON-backed repos still work).
+    """
     try:
+        from db.session import engine
+        from sqlalchemy import text
+
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
         logger.info("Database connection validated successfully.")
     except Exception as exc:
-        logger.error("Failed to connect to database: %s", exc)
-        raise
+        logger.warning(
+            "Database not available (%s). Running with JSON-backed repositories.",
+            exc,
+        )
 
     yield
 
-    await engine.dispose()
-    logger.info("Database engine disposed.")
+    try:
+        from db.session import engine
+
+        await engine.dispose()
+        logger.info("Database engine disposed.")
+    except Exception:
+        pass
 
 
 app = FastAPI(
@@ -45,7 +57,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware — allow all origins in development
+# CORS middleware -- allow all origins in development
 if settings.is_development:
     app.add_middleware(
         CORSMiddleware,
