@@ -37,6 +37,8 @@ backend/data/fetched/
 
 # SQLite databases
 *.db
+*.db-shm
+*.db-wal
 
 # Testing
 coverage/
