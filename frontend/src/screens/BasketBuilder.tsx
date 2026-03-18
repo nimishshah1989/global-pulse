@@ -4,10 +4,11 @@ import { formatPercent, formatDate } from '@/utils/format'
 import QuadrantBadge from '@/components/common/QuadrantBadge'
 import PerformanceStats from '@/components/common/PerformanceStats'
 import CreateBasketModal from '@/components/common/CreateBasketModal'
+import AddPositionModal from '@/components/common/AddPositionModal'
 import BasketNAVChart from '@/components/charts/BasketNAVChart'
 import LoadingSkeleton from '@/components/common/LoadingSkeleton'
 import ErrorAlert from '@/components/common/ErrorAlert'
-import { useBaskets, useBasket, useCreateBasket, useRemovePosition } from '@/api/hooks/useBaskets'
+import { useBaskets, useBasket, useCreateBasket, useAddPosition, useRemovePosition } from '@/api/hooks/useBaskets'
 import {
   MOCK_BASKETS,
   MOCK_POSITION_DETAILS,
@@ -104,11 +105,26 @@ function BasketListView(): JSX.Element {
 }
 
 function BasketDetailView({ basketId }: { basketId: string }): JSX.Element {
+  const navigate = useNavigate()
   const { data: basketData, isLoading, error, refetch } = useBasket(basketId)
+  const addPositionMutation = useAddPosition()
   const removePositionMutation = useRemovePosition()
+  const [showAddPosition, setShowAddPosition] = useState(false)
+  const [showCompare, setShowCompare] = useState(false)
+
+  const { data: allBasketsData } = useBaskets()
+  const allBaskets = allBasketsData ?? MOCK_BASKETS
+  const otherBaskets = allBaskets.filter((b: Basket) => b.id !== basketId && b.status === 'active')
 
   const basket = basketData ?? MOCK_BASKETS.find((b) => b.id === basketId) ?? MOCK_BASKETS[0]
   const navHistory = useMemo(() => generateMockNAVHistory(), [])
+
+  function handleAddPosition(instrumentId: string, weight: number): void {
+    addPositionMutation.mutate(
+      { basketId, instrument_id: instrumentId, weight },
+      { onSuccess: () => setShowAddPosition(false) },
+    )
+  }
 
   function handleRemovePosition(positionId: string): void {
     removePositionMutation.mutate({ basketId, positionId })
@@ -221,13 +237,52 @@ function BasketDetailView({ basketId }: { basketId: string }): JSX.Element {
       </div>
 
       <div className="flex gap-3">
-        <button className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700">
+        <button
+          onClick={() => setShowAddPosition(true)}
+          className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
+        >
           + Add Position
         </button>
-        <button className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        <button
+          onClick={() => setShowCompare(!showCompare)}
+          className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
           Compare with...
         </button>
       </div>
+
+      {showCompare && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <h3 className="mb-3 text-sm font-semibold text-slate-700">
+            Select a basket to compare
+          </h3>
+          {otherBaskets.length === 0 ? (
+            <p className="text-sm text-slate-500">No other active baskets to compare with.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {otherBaskets.map((b: Basket) => (
+                <button
+                  key={b.id}
+                  onClick={() => {
+                    setShowCompare(false)
+                    navigate(`/compass/baskets/${b.id}`)
+                  }}
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-teal-500 hover:bg-teal-50 hover:text-teal-800"
+                >
+                  {b.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <AddPositionModal
+        isOpen={showAddPosition}
+        onClose={() => setShowAddPosition(false)}
+        onAdd={handleAddPosition}
+        isAdding={addPositionMutation.isPending}
+      />
     </div>
   )
 }
