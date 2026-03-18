@@ -24,7 +24,7 @@ function isAlignmentMeta(meta: Record<string, unknown>): meta is Record<string, 
 
 export default function AlignmentCard({ opportunity, onClick }: AlignmentCardProps): JSX.Element {
   const meta = opportunity.metadata
-  const hasChain = meta !== null && isAlignmentMeta(meta)
+  const hasChain = meta != null && typeof meta === 'object' && isAlignmentMeta(meta)
 
   return (
     <div
