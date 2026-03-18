@@ -1,12 +1,20 @@
-"""Orchestrates daily data refresh: load instrument map, fetch from sources, upsert to DB.
+"""Orchestrates data ingestion: instrument discovery, price fetching, and DB persistence.
 
-This is the main entry point for populating the prices table. It reads the
-canonical instrument_map.json, splits instruments by source, fetches OHLCV
-data from Stooq or yfinance, and upserts results into PostgreSQL.
+Two modes of operation:
+1. DAILY REFRESH: Fetch latest prices for all instruments in instrument_map.json
+   via individual Stooq CSV endpoints + yfinance gap-fill.
+2. BULK INGESTION: Process Stooq bulk ZIP downloads to discover ALL instruments
+   and ingest historical prices for the complete universe (~25K+ instruments).
+
+The bulk mode is primary for initial setup and weekly full refreshes.
+The daily mode is for incremental updates between bulk runs.
 """
 
+import asyncio
+import io
 import json
 import logging
+import zipfile
 from datetime import date
 from pathlib import Path
 
@@ -14,7 +22,7 @@ import polars as pl
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from data.stooq_fetcher import StooqFetcher
+from data.stooq_fetcher import StooqFetcher, _parse_csv_response
 from data.yfinance_fetcher import YFinanceFetcher
 
 logger = logging.getLogger(__name__)
@@ -111,16 +119,18 @@ class DataPipeline:
         logger.info("Seeded %d instruments", count)
         return count
 
+    # ── MODE 1: Daily incremental refresh ───────────────────────────────
+
     async def refresh_prices(
         self,
         instruments: list[dict],
         start_date: date,
         end_date: date,
     ) -> dict[str, int]:
-        """Fetch OHLCV data for all instruments and upsert into the prices table.
+        """Fetch OHLCV data for all instruments via individual endpoints.
 
-        Splits instruments by source (stooq vs yfinance), fetches data in
-        parallel for stooq and sequentially for yfinance, then upserts.
+        Splits instruments by source (stooq vs yfinance), fetches data
+        sequentially with rate limiting, then upserts.
 
         Args:
             instruments: List of instrument dictionaries.
@@ -224,6 +234,186 @@ class DataPipeline:
             stats["skipped"],
         )
         return stats
+
+    # ── MODE 2: Bulk ingestion from Stooq ZIP downloads ─────────────────
+
+    async def bulk_ingest_region(
+        self,
+        zip_path: Path,
+        region: str,
+        instruments: list[dict] | None = None,
+    ) -> dict[str, int]:
+        """Ingest ALL price data from a Stooq bulk ZIP for a region.
+
+        This is MUCH faster than individual CSV fetches because:
+        - Single ZIP download vs thousands of HTTP requests
+        - No rate limiting needed
+        - All instruments in one pass
+
+        Args:
+            zip_path: Path to the downloaded Stooq bulk ZIP.
+            region: Region key (us, uk, jp, hk, de, pl, hu).
+            instruments: Optional filter — if provided, only ingest these.
+                         If None, ingest everything in the ZIP.
+
+        Returns:
+            Stats: {"ingested": N, "failed": N, "total_files": N}.
+        """
+        logger.info("Bulk ingesting region %s from %s", region, zip_path)
+
+        stats = {"ingested": 0, "failed": 0, "total_files": 0}
+
+        # Build lookup of instrument_id → ticker for filtering
+        ticker_to_id: dict[str, str] | None = None
+        if instruments:
+            ticker_to_id = {}
+            for inst in instruments:
+                ticker = inst.get("ticker_stooq", "")
+                if ticker:
+                    # Normalize: strip ^ prefix, uppercase
+                    normalized = ticker.lstrip("^").replace(".", "_").upper()
+                    ticker_to_id[normalized] = inst["id"]
+
+        try:
+            with zipfile.ZipFile(zip_path) as zf:
+                csv_files = [
+                    f for f in zf.namelist() if f.lower().endswith(".csv")
+                ]
+                stats["total_files"] = len(csv_files)
+                logger.info("Found %d CSV files in %s", len(csv_files), zip_path)
+
+                for csv_path in csv_files:
+                    ticker_base = Path(csv_path).stem.upper()
+
+                    # Determine instrument_id
+                    if ticker_to_id is not None:
+                        # Filtered mode: only process mapped instruments
+                        instrument_id = ticker_to_id.get(ticker_base)
+                        if instrument_id is None:
+                            # Try with region suffix
+                            from data.stooq_bulk_processor import STOOQ_REGIONS
+                            suffix = STOOQ_REGIONS.get(region, {}).get("suffix", "")
+                            if suffix:
+                                instrument_id = ticker_to_id.get(
+                                    f"{ticker_base}_{suffix}"
+                                )
+                        if instrument_id is None:
+                            continue
+                    else:
+                        # Unfiltered mode: ingest everything
+                        from data.stooq_bulk_processor import STOOQ_REGIONS
+                        suffix = STOOQ_REGIONS.get(region, {}).get("suffix", "")
+                        if suffix:
+                            instrument_id = f"{ticker_base}_{suffix}"
+                        else:
+                            instrument_id = ticker_base
+
+                    try:
+                        csv_bytes = zf.read(csv_path)
+                        csv_text = csv_bytes.decode("utf-8")
+                        df = _parse_csv_response(csv_text, ticker_base)
+                        if not df.is_empty():
+                            await self._upsert_prices(instrument_id, df)
+                            stats["ingested"] += 1
+                    except Exception as exc:
+                        logger.debug(
+                            "Failed to parse %s: %s", csv_path, exc
+                        )
+                        stats["failed"] += 1
+
+                    # Commit in batches for performance
+                    if stats["ingested"] % 500 == 0 and stats["ingested"] > 0:
+                        await self.db_session.commit()
+                        logger.info(
+                            "Bulk ingest progress: %d/%d ingested",
+                            stats["ingested"],
+                            stats["total_files"],
+                        )
+
+        except zipfile.BadZipFile:
+            logger.error("Invalid ZIP file: %s", zip_path)
+            return stats
+
+        await self.db_session.commit()
+
+        logger.info(
+            "Bulk ingest %s complete: ingested=%d, failed=%d, total=%d",
+            region,
+            stats["ingested"],
+            stats["failed"],
+            stats["total_files"],
+        )
+        return stats
+
+    async def bulk_ingest_all(
+        self,
+        bulk_dir: Path,
+        instruments: list[dict] | None = None,
+    ) -> dict[str, dict[str, int]]:
+        """Ingest price data from all available Stooq bulk ZIPs.
+
+        Args:
+            bulk_dir: Directory containing downloaded Stooq ZIP files.
+            instruments: Optional filter list. None = ingest everything.
+
+        Returns:
+            Dict mapping region → stats.
+        """
+        from data.stooq_bulk_processor import STOOQ_REGIONS
+
+        all_stats: dict[str, dict[str, int]] = {}
+
+        for region in STOOQ_REGIONS:
+            # Find ZIP file for this region
+            zip_path = self._find_bulk_zip(bulk_dir, region)
+            if zip_path is None:
+                logger.info("No ZIP found for region %s in %s, skipping", region, bulk_dir)
+                continue
+
+            # Filter instruments to this region
+            region_instruments = None
+            if instruments:
+                suffix = STOOQ_REGIONS[region].get("suffix", "")
+                region_instruments = [
+                    i for i in instruments
+                    if i.get("source") == "stooq"
+                    and i.get("ticker_stooq", "").endswith(f".{suffix}")
+                ]
+                if not region_instruments:
+                    logger.info("No mapped instruments for region %s, skipping", region)
+                    continue
+
+            stats = await self.bulk_ingest_region(
+                zip_path, region, region_instruments
+            )
+            all_stats[region] = stats
+
+        # Summary
+        total_ingested = sum(s["ingested"] for s in all_stats.values())
+        total_failed = sum(s["failed"] for s in all_stats.values())
+        logger.info(
+            "Bulk ingest all complete: %d regions, %d ingested, %d failed",
+            len(all_stats),
+            total_ingested,
+            total_failed,
+        )
+        return all_stats
+
+    @staticmethod
+    def _find_bulk_zip(bulk_dir: Path, region: str) -> Path | None:
+        """Find a bulk ZIP file for a region."""
+        patterns = [
+            f"d_{region}_txt.zip",
+            f"{region}_d.zip",
+            f"d_{region}.zip",
+        ]
+        for pat in patterns:
+            path = bulk_dir / pat
+            if path.exists():
+                return path
+        return None
+
+    # ── Shared: price upsert ────────────────────────────────────────────
 
     async def _upsert_prices(
         self,

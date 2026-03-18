@@ -46,6 +46,16 @@ _VALID_ASSET_TYPES = {
     "country_etf",
     "global_sector_etf",
     "benchmark",
+    "regional_etf",
+    "bond_etf",
+    "commodity_etf",
+    "etf",
+    "etf_unclassified",
+    "bond",
+    "commodity",
+    "currency_pair",
+    "crypto",
+    "macro_indicator",
 }
 
 _VALID_HIERARCHY_LEVELS = {1, 2, 3}
