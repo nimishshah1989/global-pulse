@@ -537,19 +537,22 @@ def bulk_ingest_zip(zip_path, region, include_stocks=True, db_path=None):
         if folder_type == "stock" and not include_stocks:
             continue
 
-        ticker_base = Path(file_path).stem.upper()
+        raw_stem = Path(file_path).stem.upper()
 
-        # Build IDs
-        if suffix:
-            instrument_id = "{}_{}".format(ticker_base, suffix)
-        else:
-            instrument_id = ticker_base
+        # Strip region suffix from filename (e.g. "AADR.US" → "AADR")
+        ticker_base = raw_stem
+        if suffix and ticker_base.endswith(".{}".format(suffix)):
+            ticker_base = ticker_base[: -(len(suffix) + 1)]
 
+        # Build IDs — indices use bare name (SPX), others use TICKER_REGION
         if folder_type == "index":
+            instrument_id = ticker_base
             stooq_ticker = "^{}".format(ticker_base)
         elif suffix:
+            instrument_id = "{}_{}".format(ticker_base, suffix)
             stooq_ticker = "{}.{}".format(ticker_base, suffix)
         else:
+            instrument_id = ticker_base
             stooq_ticker = ticker_base
 
         # Determine asset type
