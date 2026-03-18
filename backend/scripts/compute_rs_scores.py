@@ -103,12 +103,33 @@ async def compute_all(session: AsyncSession) -> int:
     """Run full RS computation pipeline. Returns count of scores written."""
     inst_map_path = Path(__file__).resolve().parent.parent / "data" / "instrument_map.json"
     with open(inst_map_path) as f:
-        instruments: list[dict] = json.load(f)
+        all_instruments: list[dict] = json.load(f)
 
-    logger.info("Fetching prices for %d instruments...", len(instruments))
+    # Only process instruments that exist in the DB (not all 9800+ from the map)
+    from sqlalchemy import text
+    db_ids_result = (await session.execute(text("SELECT id FROM instruments"))).all()
+    db_ids = {r[0] for r in db_ids_result}
+    instruments = [i for i in all_instruments if i["id"] in db_ids]
+    logger.info("Instruments in DB: %d (out of %d in map)", len(instruments), len(all_instruments))
+
+    # Only fetch prices for instruments that actually have price data
+    price_ids_result = (await session.execute(
+        text("SELECT instrument_id, COUNT(*) as cnt FROM prices GROUP BY instrument_id HAVING COUNT(*) >= :min"),
+        {"min": MIN_PRICE_ROWS},
+    )).all()
+    ids_with_prices = {r[0] for r in price_ids_result}
+    logger.info("Instruments with %d+ price rows: %d", MIN_PRICE_ROWS, len(ids_with_prices))
+
+    # Also fetch benchmark prices
+    bench_ids = {i.get("benchmark_id") for i in instruments if i.get("benchmark_id")}
+    fetch_ids = (ids_with_prices | bench_ids) & db_ids
+    # Add ACWI even if not in db_ids
+    fetch_ids.add(ACWI_ID)
+
+    logger.info("Fetching prices for %d instruments...", len(fetch_ids))
     prices: dict[str, pl.DataFrame] = {}
-    for inst in instruments:
-        prices[inst["id"]] = await _fetch_prices(session, inst["id"])
+    for iid in fetch_ids:
+        prices[iid] = await _fetch_prices(session, iid)
 
     # Stage 9: Global regime
     acwi_df = prices.get(ACWI_ID, pl.DataFrame())
