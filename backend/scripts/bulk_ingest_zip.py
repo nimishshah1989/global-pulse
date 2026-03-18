@@ -1,45 +1,26 @@
-"""Bulk ingest Stooq ZIP data — discovers instruments + loads ALL price data.
+"""Bulk ingest Stooq ZIP data — standalone script, no SQLAlchemy needed.
 
-Single-command pipeline for processing a Stooq bulk download ZIP:
-1. Reads the ZIP file (no network needed)
-2. Discovers all instruments (stocks, ETFs, indices)
-3. Registers instruments in the database
-4. Loads ALL OHLCV price data from every CSV in the ZIP
+Reads a Stooq bulk download ZIP, discovers instruments, and loads all
+OHLCV price data directly into SQLite using the stdlib sqlite3 module.
+Works on Python 3.9+ with ZERO external dependencies.
 
 Usage:
     cd backend
-    python -m scripts.bulk_ingest_zip --zip ../data/stooq_bulk/d_us_txt.zip --region us
-
-    # Skip stocks, only ETFs + indices:
-    python -m scripts.bulk_ingest_zip --zip ../data/stooq_bulk/d_us_txt.zip --region us --no-stocks
-
-    # Multiple ZIPs:
-    python -m scripts.bulk_ingest_zip --bulk-dir ../data/stooq_bulk
+    python3 -m scripts.bulk_ingest_zip --zip ../data/stooq_bulk/d_us_txt.zip --region us
+    python3 -m scripts.bulk_ingest_zip --zip ../data/stooq_bulk/d_us_txt.zip --region us --no-stocks
 """
-from __future__ import annotations
 
 import argparse
-import asyncio
 import csv
 import io
-import json
 import logging
+import os
+import sqlite3
 import sys
 import zipfile
-from datetime import date, datetime
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-
-# Ensure backend/ is on sys.path
-_backend_root = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_backend_root))
-
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-
-from config import get_settings
-from db.models import Base, Instrument, Price
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,9 +28,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ── Region config (matches stooq_bulk_processor.py) ────────────────────
+# Default DB path: backend/momentum_compass.db
+_BACKEND_ROOT = Path(__file__).resolve().parent.parent
+_DEFAULT_DB = _BACKEND_ROOT / "momentum_compass.db"
 
-STOOQ_REGIONS: dict[str, dict] = {
+# ── Region config ──────────────────────────────────────────────────────
+
+STOOQ_REGIONS = {
     "us": {
         "paths": {
             "stock": [
@@ -81,9 +66,7 @@ STOOQ_REGIONS: dict[str, dict] = {
                 "data/daily/uk/lse etfs/",
                 "data/daily/uk/lse intl etfs/",
             ],
-            "index": [
-                "data/daily/uk/lse indices/",
-            ],
+            "index": ["data/daily/uk/lse indices/"],
         },
         "suffix": "UK",
         "country": "UK",
@@ -127,45 +110,43 @@ STOOQ_REGIONS: dict[str, dict] = {
     },
 }
 
-PRICE_BATCH_SIZE = 1000
-
-
 # ── Helpers ────────────────────────────────────────────────────────────
 
-def _to_decimal(value: str) -> Decimal | None:
-    """Convert string to Decimal, returning None for empty/invalid."""
+
+def _to_float(value):
+    """Convert string to float, returning None for empty/invalid."""
     if not value or value.strip() == "":
         return None
     try:
-        return Decimal(value.strip())
-    except InvalidOperation:
-        return None
-
-
-def _to_volume(value: str) -> int | None:
-    """Convert string to integer volume."""
-    if not value or value.strip() == "":
-        return None
-    try:
-        return int(Decimal(value.strip()))
+        return float(Decimal(value.strip()))
     except (InvalidOperation, ValueError):
         return None
 
 
-def _parse_date(value: str) -> date | None:
-    """Parse date in YYYYMMDD or YYYY-MM-DD format."""
+def _to_int(value):
+    """Convert string to int volume."""
+    if not value or value.strip() == "":
+        return None
+    try:
+        return int(float(value.strip()))
+    except (ValueError, OverflowError):
+        return None
+
+
+def _parse_date(value):
+    """Parse date in YYYYMMDD or YYYY-MM-DD format. Returns ISO string."""
     value = value.strip()
     for fmt in ("%Y%m%d", "%Y-%m-%d", "%Y/%m/%d"):
         try:
-            return datetime.strptime(value, fmt).date()
+            return datetime.strptime(value, fmt).strftime("%Y-%m-%d")
         except ValueError:
             continue
     return None
 
 
-def _classify_folder_type(csv_path: str, region_config: dict) -> str | None:
-    """Determine the folder type (stock/etf/index) from the CSV path."""
-    path_lower = csv_path.lower()
+def _classify_folder_type(file_path, region_config):
+    """Determine folder type (stock/etf/index) from file path."""
+    path_lower = file_path.lower()
     for folder_type, prefixes in region_config["paths"].items():
         for prefix in prefixes:
             if path_lower.startswith(prefix.lower()):
@@ -173,45 +154,16 @@ def _classify_folder_type(csv_path: str, region_config: dict) -> str | None:
     return None
 
 
-def _build_instrument_id(ticker_base: str, suffix: str) -> str:
-    """Build canonical instrument ID from ticker base and suffix."""
-    if suffix:
-        return f"{ticker_base}_{suffix}"
-    return ticker_base
+def _parse_data_file(file_bytes, instrument_id):
+    """Parse a Stooq CSV/TXT file into price row tuples.
 
-
-def _build_stooq_ticker(
-    ticker_base: str, suffix: str, folder_type: str
-) -> str:
-    """Build Stooq ticker string."""
-    if folder_type == "index":
-        return f"^{ticker_base}"
-    if suffix:
-        return f"{ticker_base}.{suffix}"
-    return ticker_base
-
-
-def _determine_asset_type(folder_type: str) -> tuple[str, int]:
-    """Return (asset_type, hierarchy_level) based on folder type."""
-    mapping = {
-        "stock": ("stock", 3),
-        "etf": ("etf", 2),
-        "index": ("country_index", 1),
-    }
-    return mapping.get(folder_type, ("unknown", 2))
-
-
-def _parse_csv_bytes(csv_bytes: bytes, instrument_id: str) -> list[dict]:
-    """Parse a Stooq CSV/TXT file into price row dicts.
-
-    Stooq bulk files use headers like:
+    Handles both formats:
         <TICKER>,<PER>,<DATE>,<TIME>,<OPEN>,<HIGH>,<LOW>,<CLOSE>,<VOL>,<OPENINT>
-    or standard:
         Date,Open,High,Low,Close,Volume
     """
-    rows: list[dict] = []
+    rows = []
     try:
-        text = csv_bytes.decode("utf-8", errors="replace")
+        text = file_bytes.decode("utf-8", errors="replace")
     except Exception:
         return rows
 
@@ -220,11 +172,11 @@ def _parse_csv_bytes(csv_bytes: bytes, instrument_id: str) -> list[dict]:
     if header is None:
         return rows
 
-    # Normalize headers: strip whitespace, angle brackets, lowercase
+    # Normalize: strip whitespace and angle brackets, lowercase
     normalized = [col.strip().strip("<>").lower() for col in header]
-    col_map: dict[str, int] = {}
 
-    # Map Stooq bracket-style AND standard headers
+    # Map column names to indices
+    col_map = {}
     aliases = {
         "date": ("date",),
         "open": ("open",),
@@ -233,7 +185,6 @@ def _parse_csv_bytes(csv_bytes: bytes, instrument_id: str) -> list[dict]:
         "close": ("close",),
         "volume": ("volume", "vol"),
     }
-
     for target, names in aliases.items():
         for idx, col in enumerate(normalized):
             if col in names:
@@ -250,97 +201,145 @@ def _parse_csv_bytes(csv_bytes: bytes, instrument_id: str) -> list[dict]:
             parsed_date = _parse_date(row[col_map["date"]])
             if parsed_date is None:
                 continue
-            close_val = _to_decimal(row[col_map["close"]])
+            close_val = _to_float(row[col_map["close"]])
             if close_val is None:
                 continue
-            rows.append({
-                "instrument_id": instrument_id,
-                "date": parsed_date,
-                "open": _to_decimal(row[col_map["open"]]) if "open" in col_map else None,
-                "high": _to_decimal(row[col_map["high"]]) if "high" in col_map else None,
-                "low": _to_decimal(row[col_map["low"]]) if "low" in col_map else None,
-                "close": close_val,
-                "volume": _to_volume(row[col_map["volume"]]) if "volume" in col_map else None,
-            })
+            rows.append((
+                instrument_id,
+                parsed_date,
+                _to_float(row[col_map["open"]]) if "open" in col_map else None,
+                _to_float(row[col_map["high"]]) if "high" in col_map else None,
+                _to_float(row[col_map["low"]]) if "low" in col_map else None,
+                close_val,
+                _to_int(row[col_map["volume"]]) if "volume" in col_map else None,
+            ))
         except (IndexError, KeyError):
             continue
 
     return rows
 
 
+# ── Database setup ─────────────────────────────────────────────────────
+
+CREATE_TABLES_SQL = """
+CREATE TABLE IF NOT EXISTS instruments (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    ticker_stooq TEXT,
+    ticker_yfinance TEXT,
+    source TEXT NOT NULL DEFAULT 'stooq',
+    asset_type TEXT NOT NULL,
+    country TEXT,
+    sector TEXT,
+    hierarchy_level INTEGER NOT NULL,
+    benchmark_id TEXT,
+    currency TEXT NOT NULL DEFAULT 'USD',
+    liquidity_tier INTEGER DEFAULT 2,
+    is_active INTEGER DEFAULT 1,
+    metadata TEXT
+);
+
+CREATE TABLE IF NOT EXISTS prices (
+    instrument_id TEXT NOT NULL,
+    date TEXT NOT NULL,
+    open REAL,
+    high REAL,
+    low REAL,
+    close REAL NOT NULL,
+    volume INTEGER,
+    PRIMARY KEY (instrument_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS rs_scores (
+    instrument_id TEXT NOT NULL,
+    date TEXT NOT NULL,
+    rs_line REAL,
+    rs_ma_150 REAL,
+    rs_trend TEXT,
+    rs_pct_1m REAL,
+    rs_pct_3m REAL,
+    rs_pct_6m REAL,
+    rs_pct_12m REAL,
+    rs_composite REAL,
+    rs_momentum REAL,
+    volume_ratio REAL,
+    vol_multiplier REAL,
+    adjusted_rs_score REAL,
+    quadrant TEXT,
+    liquidity_tier INTEGER,
+    extension_warning INTEGER DEFAULT 0,
+    regime TEXT DEFAULT 'RISK_ON',
+    PRIMARY KEY (instrument_id, date)
+);
+"""
+
+
+def setup_db(db_path):
+    """Create tables and return connection."""
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.executescript(CREATE_TABLES_SQL)
+    conn.commit()
+    return conn
+
+
 # ── Main pipeline ──────────────────────────────────────────────────────
 
-async def bulk_ingest_zip(
-    zip_path: Path,
-    region: str,
-    include_stocks: bool = True,
-) -> dict:
-    """Process a single Stooq bulk ZIP: discover instruments + load prices.
+def bulk_ingest_zip(zip_path, region, include_stocks=True, db_path=None):
+    """Process a Stooq bulk ZIP: discover instruments + load all prices."""
 
-    Args:
-        zip_path: Path to the Stooq ZIP file (e.g. d_us_txt.zip).
-        region: Region key (us, uk, jp, hk, de).
-        include_stocks: If False, skip individual stocks (ETFs + indices only).
-
-    Returns:
-        Stats dict with counts.
-    """
     if region not in STOOQ_REGIONS:
         logger.error("Unknown region: %s. Available: %s",
                       region, list(STOOQ_REGIONS.keys()))
-        return {"error": f"Unknown region: {region}"}
+        return
 
     config = STOOQ_REGIONS[region]
     suffix = config["suffix"]
     country = config["country"]
     currency = config["currency"]
 
+    if db_path is None:
+        db_path = _DEFAULT_DB
+
     stats = {
-        "instruments_discovered": 0,
-        "instruments_loaded": 0,
-        "instruments_skipped": 0,
+        "instruments_new": 0,
+        "instruments_existing": 0,
         "prices_loaded": 0,
-        "prices_skipped": 0,
-        "csv_files_total": 0,
-        "csv_files_processed": 0,
-        "csv_files_failed": 0,
+        "files_processed": 0,
+        "files_failed": 0,
+        "files_total": 0,
     }
 
     # Set up database
-    settings = get_settings()
-    url = settings.effective_database_url
-    connect_args = {"check_same_thread": False} if "sqlite" in url else {}
-    engine = create_async_engine(url, echo=False, connect_args=connect_args)
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables ready.")
-
-    factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    conn = setup_db(db_path)
+    logger.info("Database: %s", db_path)
 
     # Open ZIP
-    logger.info("Opening ZIP: %s", zip_path)
+    logger.info("Opening ZIP: %s (%.1f MB)",
+                zip_path, zip_path.stat().st_size / 1024 / 1024)
+
     try:
         zf = zipfile.ZipFile(zip_path)
     except zipfile.BadZipFile:
         logger.error("Invalid ZIP file: %s", zip_path)
-        return {"error": "Invalid ZIP file"}
+        return
 
-    all_csv_files = [f for f in zf.namelist()
-                     if f.lower().endswith(".csv") or f.lower().endswith(".txt")]
-    stats["csv_files_total"] = len(all_csv_files)
-    logger.info("Found %d data files in ZIP", len(all_csv_files))
+    # Find all data files (.txt or .csv)
+    all_files = [f for f in zf.namelist()
+                 if f.lower().endswith(".csv") or f.lower().endswith(".txt")]
+    stats["files_total"] = len(all_files)
+    logger.info("Found %d data files in ZIP", len(all_files))
 
-    # Show sample paths for debugging folder structure
-    if all_csv_files:
-        sample = all_csv_files[:10]
-        logger.info("Sample file paths in ZIP:")
-        for p in sample:
+    # Show sample paths for debugging
+    if all_files:
+        logger.info("Sample file paths:")
+        for p in all_files[:10]:
             logger.info("  %s", p)
 
-        # Show unique top-level directories
+        # Show detected directories
         dirs = set()
-        for f in all_csv_files:
+        for f in all_files:
             parts = f.lower().split("/")
             if len(parts) >= 4:
                 dirs.add("/".join(parts[:4]) + "/")
@@ -348,157 +347,109 @@ async def bulk_ingest_zip(
         for d in sorted(dirs):
             logger.info("  %s", d)
 
-    # Phase 1: Discover instruments from folder structure
-    instruments: list[dict] = []
-    csv_to_instrument: dict[str, str] = {}  # csv_path -> instrument_id
+    # Get existing instrument IDs
+    existing_ids = set(
+        row[0] for row in conn.execute("SELECT id FROM instruments").fetchall()
+    )
 
-    for csv_path in all_csv_files:
-        folder_type = _classify_folder_type(csv_path, config)
+    # Process each file
+    cursor = conn.cursor()
+
+    for file_path in all_files:
+        folder_type = _classify_folder_type(file_path, config)
         if folder_type is None:
             continue
         if folder_type == "stock" and not include_stocks:
             continue
 
-        # Strip .txt or .csv extension to get ticker
-        ticker_base = Path(csv_path).stem.upper()
-        instrument_id = _build_instrument_id(ticker_base, suffix)
-        stooq_ticker = _build_stooq_ticker(ticker_base, suffix, folder_type)
-        asset_type, hierarchy_level = _determine_asset_type(folder_type)
+        ticker_base = Path(file_path).stem.upper()
 
-        instruments.append({
-            "id": instrument_id,
-            "name": ticker_base,
-            "ticker_stooq": stooq_ticker,
-            "ticker_yfinance": None,
-            "source": "stooq",
-            "asset_type": asset_type,
-            "country": country,
-            "sector": None,
-            "hierarchy_level": hierarchy_level,
-            "benchmark_id": None,  # set later
-            "currency": currency,
-            "liquidity_tier": 2,
-        })
-        csv_to_instrument[csv_path] = instrument_id
+        # Build IDs
+        if suffix:
+            instrument_id = "{}_{}".format(ticker_base, suffix)
+        else:
+            instrument_id = ticker_base
 
-    # Deduplicate by ID
-    seen: dict[str, dict] = {}
-    for inst in instruments:
-        if inst["id"] not in seen:
-            seen[inst["id"]] = inst
-    instruments = list(seen.values())
-    stats["instruments_discovered"] = len(instruments)
+        if folder_type == "index":
+            stooq_ticker = "^{}".format(ticker_base)
+        elif suffix:
+            stooq_ticker = "{}.{}".format(ticker_base, suffix)
+        else:
+            stooq_ticker = ticker_base
 
-    logger.info("Discovered %d unique instruments", len(instruments))
+        # Determine asset type
+        type_map = {"stock": ("stock", 3), "etf": ("etf", 2), "index": ("country_index", 1)}
+        asset_type, hierarchy_level = type_map.get(folder_type, ("unknown", 2))
 
-    # Phase 2: Register instruments in DB
-    async with factory() as session:
-        existing_result = await session.execute(select(Instrument.id))
-        existing_ids = {row[0] for row in existing_result.fetchall()}
+        # Register instrument if new
+        if instrument_id not in existing_ids:
+            cursor.execute(
+                "INSERT OR IGNORE INTO instruments "
+                "(id, name, ticker_stooq, source, asset_type, country, "
+                "hierarchy_level, currency, liquidity_tier, is_active) "
+                "VALUES (?, ?, ?, 'stooq', ?, ?, ?, ?, 2, 1)",
+                (instrument_id, ticker_base, stooq_ticker, asset_type,
+                 country, hierarchy_level, currency),
+            )
+            existing_ids.add(instrument_id)
+            stats["instruments_new"] += 1
+        else:
+            stats["instruments_existing"] += 1
 
-        new_instruments = [i for i in instruments if i["id"] not in existing_ids]
-        for inst in new_instruments:
-            session.add(Instrument(
-                id=inst["id"],
-                name=inst["name"],
-                ticker_stooq=inst.get("ticker_stooq"),
-                ticker_yfinance=inst.get("ticker_yfinance"),
-                source=inst["source"],
-                asset_type=inst["asset_type"],
-                country=inst.get("country"),
-                sector=inst.get("sector"),
-                hierarchy_level=inst["hierarchy_level"],
-                benchmark_id=None,
-                currency=inst.get("currency", "USD"),
-                liquidity_tier=inst.get("liquidity_tier", 2),
-                is_active=True,
-            ))
-        await session.commit()
-        stats["instruments_loaded"] = len(new_instruments)
-        stats["instruments_skipped"] = len(instruments) - len(new_instruments)
-        all_valid_ids = existing_ids | {i["id"] for i in new_instruments}
+        # Parse and load price data
+        try:
+            file_bytes = zf.read(file_path)
+            price_rows = _parse_data_file(file_bytes, instrument_id)
 
-    logger.info(
-        "Instruments: %d new, %d existing",
-        stats["instruments_loaded"],
-        stats["instruments_skipped"],
-    )
-
-    # Phase 3: Load ALL price data from CSV files
-    logger.info("Starting price data ingestion...")
-
-    async with factory() as session:
-        processed = 0
-        for csv_path, instrument_id in csv_to_instrument.items():
-            if instrument_id not in all_valid_ids:
-                continue
-
-            try:
-                csv_bytes = zf.read(csv_path)
-                price_rows = _parse_csv_bytes(csv_bytes, instrument_id)
-
-                if not price_rows:
-                    continue
-
-                # Batch insert using raw SQL for speed
-                for i in range(0, len(price_rows), PRICE_BATCH_SIZE):
-                    batch = price_rows[i:i + PRICE_BATCH_SIZE]
-                    for row in batch:
-                        session.add(Price(
-                            instrument_id=row["instrument_id"],
-                            date=row["date"],
-                            open=float(row["open"]) if row["open"] is not None else None,
-                            high=float(row["high"]) if row["high"] is not None else None,
-                            low=float(row["low"]) if row["low"] is not None else None,
-                            close=float(row["close"]),
-                            volume=row["volume"],
-                        ))
-                    await session.flush()
-
+            if price_rows:
+                cursor.executemany(
+                    "INSERT OR IGNORE INTO prices "
+                    "(instrument_id, date, open, high, low, close, volume) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    price_rows,
+                )
                 stats["prices_loaded"] += len(price_rows)
-                stats["csv_files_processed"] += 1
-                processed += 1
+                stats["files_processed"] += 1
 
-                # Commit every 200 instruments for memory management
-                if processed % 200 == 0:
-                    await session.commit()
-                    logger.info(
-                        "Progress: %d/%d instruments processed, %d price rows loaded",
-                        processed,
-                        len(csv_to_instrument),
-                        stats["prices_loaded"],
-                    )
+        except Exception as exc:
+            stats["files_failed"] += 1
+            if stats["files_failed"] <= 10:
+                logger.warning("Failed %s: %s", file_path, exc)
 
-            except Exception as exc:
-                stats["csv_files_failed"] += 1
-                if stats["csv_files_failed"] <= 10:
-                    logger.warning("Failed %s: %s", csv_path, exc)
+        # Commit every 200 instruments
+        total_done = stats["files_processed"] + stats["files_failed"]
+        if total_done > 0 and total_done % 200 == 0:
+            conn.commit()
+            logger.info(
+                "Progress: %d files processed, %d instruments, %d price rows",
+                stats["files_processed"],
+                stats["instruments_new"],
+                stats["prices_loaded"],
+            )
 
-        await session.commit()
-
+    conn.commit()
     zf.close()
-    await engine.dispose()
 
-    # Summary
+    # Final stats
+    row_count = conn.execute("SELECT COUNT(*) FROM prices").fetchone()[0]
+    inst_count = conn.execute("SELECT COUNT(*) FROM instruments").fetchone()[0]
+    conn.close()
+
     logger.info("=" * 60)
     logger.info("BULK INGEST COMPLETE — Region: %s", region.upper())
-    logger.info("  Instruments: %d discovered, %d new, %d existing",
-                stats["instruments_discovered"],
-                stats["instruments_loaded"],
-                stats["instruments_skipped"])
-    logger.info("  CSV files:   %d total, %d processed, %d failed",
-                stats["csv_files_total"],
-                stats["csv_files_processed"],
-                stats["csv_files_failed"])
-    logger.info("  Price rows:  %d loaded", stats["prices_loaded"])
+    logger.info("  Instruments: %d new, %d existing, %d total in DB",
+                stats["instruments_new"], stats["instruments_existing"], inst_count)
+    logger.info("  Files:       %d total, %d processed, %d failed",
+                stats["files_total"], stats["files_processed"], stats["files_failed"])
+    logger.info("  Prices:      %d rows loaded, %d total in DB",
+                stats["prices_loaded"], row_count)
+    logger.info("  Database:    %s", db_path)
     logger.info("=" * 60)
 
-    return stats
 
-
-def main() -> None:
+def main():
     parser = argparse.ArgumentParser(
-        description="Bulk ingest Stooq ZIP data into database",
+        description="Bulk ingest Stooq ZIP data into SQLite database",
     )
     parser.add_argument(
         "--zip", type=Path, required=True,
@@ -513,6 +464,10 @@ def main() -> None:
         "--no-stocks", action="store_true",
         help="Skip individual stocks (only ETFs + indices)",
     )
+    parser.add_argument(
+        "--db", type=Path, default=None,
+        help="Path to SQLite database (default: backend/momentum_compass.db)",
+    )
 
     args = parser.parse_args()
 
@@ -520,11 +475,12 @@ def main() -> None:
         logger.error("ZIP file not found: %s", args.zip)
         sys.exit(1)
 
-    asyncio.run(bulk_ingest_zip(
+    bulk_ingest_zip(
         zip_path=args.zip,
         region=args.region,
         include_stocks=not args.no_stocks,
-    ))
+        db_path=args.db,
+    )
 
 
 if __name__ == "__main__":
