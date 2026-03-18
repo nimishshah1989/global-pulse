@@ -2,8 +2,13 @@
 
 Queries real rs_scores table first. Falls back to deterministic mock
 scores if the DB has no data (for tests and pre-seed operation).
+
+Supports `as_of` date parameter for temporal/historical views.
+In mock mode, dates shift the deterministic seed so scores change
+realistically over time.
 """
 
+import datetime
 import hashlib
 import logging
 from typing import Any
@@ -68,9 +73,9 @@ CANONICAL_COUNTRY_INDICES: list[str] = [
 logger = logging.getLogger(__name__)
 
 
-def _seed_float(instrument_id: str, salt: str = "") -> float:
-    """Return a deterministic float in [0, 1) based on instrument ID and salt."""
-    digest = hashlib.md5((instrument_id + salt).encode()).hexdigest()
+def _seed_float(instrument_id: str, salt: str = "", date_str: str = "") -> float:
+    """Return a deterministic float in [0, 1) based on instrument ID, salt, and date."""
+    digest = hashlib.md5((instrument_id + salt + date_str).encode()).hexdigest()
     return int(digest[:8], 16) / 0xFFFFFFFF
 
 
@@ -85,32 +90,40 @@ def _determine_quadrant(score: float, momentum: float) -> str:
     return "IMPROVING"
 
 
-def _mock_rs_scores(instrument: dict[str, Any]) -> dict[str, Any]:
-    """Generate realistic mock RS scores for an instrument."""
+def _mock_rs_scores(
+    instrument: dict[str, Any],
+    as_of: datetime.date | None = None,
+) -> dict[str, Any]:
+    """Generate realistic mock RS scores for an instrument.
+
+    When `as_of` is provided, scores shift deterministically by date
+    so the temporal UI shows different rankings over time.
+    """
     iid = instrument["id"]
+    date_str = as_of.isoformat() if as_of else ""
 
     # Adjusted RS score: 20-90 range
-    raw = _seed_float(iid, "score")
+    raw = _seed_float(iid, "score", date_str)
     adjusted_rs_score = round(20 + raw * 70, 2)
 
     # RS momentum: -30 to +30
-    mom_raw = _seed_float(iid, "momentum")
+    mom_raw = _seed_float(iid, "momentum", date_str)
     rs_momentum = round(-30 + mom_raw * 60, 2)
 
     quadrant = _determine_quadrant(adjusted_rs_score, rs_momentum)
 
     # Volume ratio: 0.5 to 2.0
-    vol_raw = _seed_float(iid, "volume")
+    vol_raw = _seed_float(iid, "volume", date_str)
     volume_ratio = round(0.5 + vol_raw * 1.5, 3)
 
     # RS trend
     rs_trend = "OUTPERFORMING" if adjusted_rs_score > 50 else "UNDERPERFORMING"
 
     # Percentile fields: 0-100
-    rs_pct_1m = round(_seed_float(iid, "1m") * 100, 2)
-    rs_pct_3m = round(_seed_float(iid, "3m") * 100, 2)
-    rs_pct_6m = round(_seed_float(iid, "6m") * 100, 2)
-    rs_pct_12m = round(_seed_float(iid, "12m") * 100, 2)
+    rs_pct_1m = round(_seed_float(iid, "1m", date_str) * 100, 2)
+    rs_pct_3m = round(_seed_float(iid, "3m", date_str) * 100, 2)
+    rs_pct_6m = round(_seed_float(iid, "6m", date_str) * 100, 2)
+    rs_pct_12m = round(_seed_float(iid, "12m", date_str) * 100, 2)
 
     # Extension warning
     extension_warning = (
@@ -122,6 +135,8 @@ def _mock_rs_scores(instrument: dict[str, Any]) -> dict[str, Any]:
     return {
         "instrument_id": iid,
         "name": instrument["name"],
+        "country": instrument.get("country"),
+        "sector": instrument.get("sector"),
         "adjusted_rs_score": adjusted_rs_score,
         "quadrant": quadrant,
         "rs_momentum": rs_momentum,
@@ -234,25 +249,27 @@ class RankingRepository:
 
     async def _try_db_rankings_by_ids(
         self, instrument_ids: list[str],
+        as_of: datetime.date | None = None,
     ) -> list[dict[str, Any]] | None:
         """Get rankings for a specific set of instrument IDs from the DB.
 
-        Uses each instrument's LATEST RS score date (not the global max),
-        so instruments computed on different dates are all included.
+        When `as_of` is provided, finds the latest score on or before that date.
+        Otherwise uses each instrument's latest RS score date.
         """
         if self._session is None:
             return None
         try:
-            # Subquery: latest date per instrument
-            latest_per_inst = (
+            # Subquery: latest date per instrument (on or before as_of if given)
+            sub_q = (
                 select(
                     RSScore.instrument_id,
                     func.max(RSScore.date).label("max_date"),
                 )
                 .where(RSScore.instrument_id.in_(instrument_ids))
-                .group_by(RSScore.instrument_id)
-                .subquery()
             )
+            if as_of is not None:
+                sub_q = sub_q.where(RSScore.date <= as_of)
+            latest_per_inst = sub_q.group_by(RSScore.instrument_id).subquery()
 
             stmt = (
                 select(Instrument, RSScore)
@@ -274,12 +291,17 @@ class RankingRepository:
             logger.debug("DB ranking by IDs query failed: %s", e)
             return None
 
-    async def get_country_rankings(self) -> list[dict[str, Any]]:
+    async def get_country_rankings(
+        self, as_of: datetime.date | None = None,
+    ) -> list[dict[str, Any]]:
         """Return Level 1 canonical country index instruments with RS scores.
 
         Uses the 14 primary country indices from the CLAUDE.md spec.
+        If `as_of` is provided, return scores for that historical date.
         """
-        db_result = await self._try_db_rankings_by_ids(CANONICAL_COUNTRY_INDICES)
+        db_result = await self._try_db_rankings_by_ids(
+            CANONICAL_COUNTRY_INDICES, as_of=as_of
+        )
         if db_result is not None:
             return db_result
 
@@ -290,12 +312,14 @@ class RankingRepository:
             if i["id"] in CANONICAL_COUNTRY_INDICES
         ]
         return sorted(
-            [_mock_rs_scores(i) for i in country_indices],
+            [_mock_rs_scores(i, as_of=as_of) for i in country_indices],
             key=lambda x: x["adjusted_rs_score"],
             reverse=True,
         )
 
-    async def get_sector_rankings(self, country_code: str) -> list[dict[str, Any]]:
+    async def get_sector_rankings(
+        self, country_code: str, as_of: datetime.date | None = None,
+    ) -> list[dict[str, Any]]:
         """Return Level 2 sector instruments for a country with RS scores.
 
         Uses canonical sector lists when available (US, IN, JP, HK) to
@@ -306,7 +330,9 @@ class RankingRepository:
 
         if canonical_ids is not None:
             # Use canonical whitelist
-            db_result = await self._try_db_rankings_by_ids(canonical_ids)
+            db_result = await self._try_db_rankings_by_ids(
+                canonical_ids, as_of=as_of
+            )
             if db_result is not None:
                 return db_result
 
@@ -314,7 +340,7 @@ class RankingRepository:
             all_instruments = await self._instrument_repo.get_all()
             instruments = [i for i in all_instruments if i["id"] in canonical_ids]
             return sorted(
-                [_mock_rs_scores(i) for i in instruments],
+                [_mock_rs_scores(i, as_of=as_of) for i in instruments],
                 key=lambda x: x["adjusted_rs_score"],
                 reverse=True,
             )

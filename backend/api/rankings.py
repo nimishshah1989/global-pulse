@@ -1,9 +1,15 @@
-"""Ranking endpoints for country, sector, and stock RS rankings."""
+"""Ranking endpoints for country, sector, and stock RS rankings.
+
+Supports an optional `as_of` query parameter (YYYY-MM-DD) that returns
+historical rankings for the requested date. When the engine runs on real
+data this queries the rs_scores table at that date; in mock mode it
+generates deterministic date-shifted scores so the temporal UI works.
+"""
 
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.session import get_db
@@ -26,12 +32,13 @@ def _get_ranking_service(session: AsyncSession) -> RankingService:
 
 @router.get("/countries")
 async def get_country_rankings(
+    as_of: date | None = Query(None, description="Historical date (YYYY-MM-DD)"),
     session: AsyncSession = Depends(get_db),
 ) -> ApiResponse[list[RankingItem]]:
     """Return RS rankings for all country indices, sorted by score descending."""
     try:
         service = _get_ranking_service(session)
-        items = await service.get_country_rankings()
+        items = await service.get_country_rankings(as_of=as_of)
         return ApiResponse(
             data=items,
             meta=Meta(
@@ -47,12 +54,13 @@ async def get_country_rankings(
 @router.get("/sectors/{country_code}")
 async def get_sector_rankings(
     country_code: str,
+    as_of: date | None = Query(None, description="Historical date (YYYY-MM-DD)"),
     session: AsyncSession = Depends(get_db),
 ) -> ApiResponse[list[RankingItem]]:
     """Return RS rankings for sectors within a country."""
     try:
         service = _get_ranking_service(session)
-        items = await service.get_sector_rankings(country_code)
+        items = await service.get_sector_rankings(country_code, as_of=as_of)
         return ApiResponse(
             data=items,
             meta=Meta(

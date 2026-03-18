@@ -16,8 +16,21 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    # Default to SQLite for development; production uses PostgreSQL via env var
+    # Default to SQLite for development; production uses PostgreSQL via env var.
+    # Path is relative to the backend/ directory (where main.py lives).
     DATABASE_URL: str = "sqlite+aiosqlite:///./momentum_compass.db"
+
+    @property
+    def effective_database_url(self) -> str:
+        """Return the DATABASE_URL, resolving SQLite paths relative to backend dir."""
+        url = self.DATABASE_URL
+        if url.startswith("sqlite") and ":///./" in url:
+            import os
+            backend_dir = os.path.dirname(os.path.abspath(__file__))
+            db_name = url.split("///./")[-1]
+            abs_path = os.path.join(backend_dir, db_name)
+            return f"sqlite+aiosqlite:///{abs_path}"
+        return url
 
     # Optional with defaults
     REDIS_URL: str = "redis://localhost:6379"

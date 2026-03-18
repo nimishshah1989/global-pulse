@@ -25,7 +25,7 @@ def get_engine() -> AsyncEngine:
         return _engine
 
     settings = get_settings()
-    url = settings.DATABASE_URL
+    url = settings.effective_database_url
 
     kwargs: dict = {
         "echo": settings.is_development,

@@ -1,12 +1,7 @@
 """Opportunity service — business logic for opportunity signal retrieval."""
 
 import logging
-from typing import Any
-
-from models.opportunities import (
-    MultiLevelAlignmentResponse,
-    OpportunityResponse,
-)
+from models.opportunities import OpportunityResponse
 from repositories.opportunity_repo import OpportunityRepository
 
 logger = logging.getLogger(__name__)
@@ -51,34 +46,18 @@ class OpportunityService:
 
     async def get_multi_level_alignments(
         self, limit: int = 20
-    ) -> list[MultiLevelAlignmentResponse]:
+    ) -> list[OpportunityResponse]:
         """Retrieve only multi-level alignment signals.
+
+        Returns them as OpportunityResponse so the frontend can consume
+        them using the same Opportunity type (with metadata containing the
+        alignment chain).
 
         Args:
             limit: Maximum results to return.
 
         Returns:
-            List of MultiLevelAlignmentResponse models.
+            List of OpportunityResponse models.
         """
         raw = await self._repo.get_multi_level_alignments(limit=limit)
-        results: list[MultiLevelAlignmentResponse] = []
-        for item in raw:
-            meta: dict[str, Any] = item.get("metadata", {})
-            results.append(
-                MultiLevelAlignmentResponse(
-                    id=item["id"],
-                    date=item["date"],
-                    conviction_score=item["conviction_score"],
-                    description=item["description"],
-                    country_id=meta.get("country_id", ""),
-                    country_name=meta.get("country_name", ""),
-                    country_quadrant=meta.get("country_quadrant", ""),
-                    sector_id=meta.get("sector_id", ""),
-                    sector_name=meta.get("sector_name", ""),
-                    sector_quadrant=meta.get("sector_quadrant", ""),
-                    stock_id=meta.get("stock_id", ""),
-                    stock_name=meta.get("stock_name", ""),
-                    stock_quadrant=meta.get("stock_quadrant", ""),
-                )
-            )
-        return results
+        return [OpportunityResponse(**item) for item in raw]

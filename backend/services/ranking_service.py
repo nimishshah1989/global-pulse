@@ -4,6 +4,7 @@ Validates inputs and delegates to the ranking repository.
 """
 
 import logging
+from datetime import date
 
 from models.rs_scores import RankingItem
 from repositories.instrument_repo import VALID_COUNTRY_CODES, InstrumentRepository
@@ -37,19 +38,25 @@ class RankingService:
                 f"Valid codes: {sorted(VALID_COUNTRY_CODES)}"
             )
 
-    async def get_country_rankings(self) -> list[RankingItem]:
+    async def get_country_rankings(
+        self, as_of: date | None = None
+    ) -> list[RankingItem]:
         """Return RS rankings for all country indices."""
-        raw = await self._ranking_repo.get_country_rankings()
+        raw = await self._ranking_repo.get_country_rankings(as_of=as_of)
         return [RankingItem(**item) for item in raw]
 
-    async def get_sector_rankings(self, country_code: str) -> list[RankingItem]:
+    async def get_sector_rankings(
+        self, country_code: str, as_of: date | None = None
+    ) -> list[RankingItem]:
         """Return RS rankings for sectors within a country.
 
         Raises:
             ValueError: If country_code is invalid.
         """
         self._validate_country_code(country_code)
-        raw = await self._ranking_repo.get_sector_rankings(country_code.upper())
+        raw = await self._ranking_repo.get_sector_rankings(
+            country_code.upper(), as_of=as_of
+        )
         return [RankingItem(**item) for item in raw]
 
     async def get_stock_rankings(

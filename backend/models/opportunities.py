@@ -27,6 +27,7 @@ class OpportunityResponse(BaseModel):
 
     id: uuid.UUID
     instrument_id: str
+    instrument_name: str = ""
     date: datetime.date
     signal_type: str
     conviction_score: float | None = None

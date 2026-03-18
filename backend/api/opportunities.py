@@ -12,10 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.session import get_db
 from models.common import ApiResponse, Meta
-from models.opportunities import (
-    MultiLevelAlignmentResponse,
-    OpportunityResponse,
-)
+from models.opportunities import OpportunityResponse
 from repositories.opportunity_repo import OpportunityRepository
 from services.opportunity_service import OpportunityService
 
@@ -62,7 +59,7 @@ async def list_opportunities(
 async def get_multi_level_alignments(
     limit: int = Query(20, ge=1, le=100, description="Max results"),
     session: AsyncSession = Depends(get_db),
-) -> ApiResponse[list[MultiLevelAlignmentResponse]]:
+) -> ApiResponse[list[OpportunityResponse]]:
     """Return only multi-level alignment signals.
 
     These are the highest-conviction outputs showing the full chain:

@@ -1,9 +1,10 @@
-import { useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import WorldChoropleth from '@/components/maps/WorldChoropleth'
 import RSRankingTable from '@/components/tables/RSRankingTable'
 import TopBottomStrip from '@/components/common/TopBottomStrip'
 import RegimeBanner from '@/components/common/RegimeBanner'
+import DateNavigator from '@/components/common/DateNavigator'
 import LoadingSkeleton from '@/components/common/LoadingSkeleton'
 import ErrorAlert from '@/components/common/ErrorAlert'
 import { useCountryRankings } from '@/api/hooks/useRankings'
@@ -13,7 +14,8 @@ import type { RankingItem } from '@/types/rs'
 
 export default function GlobalPulse(): JSX.Element {
   const navigate = useNavigate()
-  const { data: countryData, isLoading: countriesLoading, error: countriesError, refetch: refetchCountries } = useCountryRankings()
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const { data: countryData, isLoading: countriesLoading, error: countriesError, refetch: refetchCountries } = useCountryRankings(selectedDate)
   const { data: regimeData } = useRegime()
 
   const rankings = countryData ?? MOCK_COUNTRY_DATA
@@ -29,9 +31,12 @@ export default function GlobalPulse(): JSX.Element {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900">
-        Global Pulse
-      </h1>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold text-slate-900">
+          Global Pulse
+        </h1>
+        <DateNavigator selectedDate={selectedDate} onDateChange={setSelectedDate} />
+      </div>
 
       {regimeData && (
         <RegimeBanner regime={regimeData.regime} />
