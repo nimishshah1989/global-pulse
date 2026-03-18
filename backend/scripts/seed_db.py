@@ -120,9 +120,13 @@ async def seed_prices(
             for row in rows:
                 await session.execute(
                     text("""
-                        INSERT OR REPLACE INTO prices
+                        INSERT INTO prices
                         (instrument_id, date, open, high, low, close, volume)
                         VALUES (:instrument_id, :date, :open, :high, :low, :close, :volume)
+                        ON CONFLICT (instrument_id, date) DO UPDATE SET
+                            open = EXCLUDED.open, high = EXCLUDED.high,
+                            low = EXCLUDED.low, close = EXCLUDED.close,
+                            volume = EXCLUDED.volume
                     """),
                     {
                         "instrument_id": iid,
@@ -310,7 +314,7 @@ async def compute_and_seed_rs_scores(
         for sc in all_scores:
             await session.execute(
                 text("""
-                    INSERT OR REPLACE INTO rs_scores
+                    INSERT INTO rs_scores
                     (instrument_id, date, rs_line, rs_ma_150, rs_trend,
                      rs_pct_1m, rs_pct_3m, rs_pct_6m, rs_pct_12m,
                      rs_composite, rs_momentum, volume_ratio, vol_multiplier,
@@ -321,6 +325,16 @@ async def compute_and_seed_rs_scores(
                             :rs_composite, :rs_momentum, :volume_ratio, :vol_multiplier,
                             :adjusted_rs_score, :quadrant, :liquidity_tier,
                             :extension_warning, :regime)
+                    ON CONFLICT (instrument_id, date) DO UPDATE SET
+                        rs_line = EXCLUDED.rs_line, rs_ma_150 = EXCLUDED.rs_ma_150,
+                        rs_trend = EXCLUDED.rs_trend, rs_pct_1m = EXCLUDED.rs_pct_1m,
+                        rs_pct_3m = EXCLUDED.rs_pct_3m, rs_pct_6m = EXCLUDED.rs_pct_6m,
+                        rs_pct_12m = EXCLUDED.rs_pct_12m, rs_composite = EXCLUDED.rs_composite,
+                        rs_momentum = EXCLUDED.rs_momentum, volume_ratio = EXCLUDED.volume_ratio,
+                        vol_multiplier = EXCLUDED.vol_multiplier,
+                        adjusted_rs_score = EXCLUDED.adjusted_rs_score,
+                        quadrant = EXCLUDED.quadrant, liquidity_tier = EXCLUDED.liquidity_tier,
+                        extension_warning = EXCLUDED.extension_warning, regime = EXCLUDED.regime
                 """),
                 {
                     "instrument_id": sc["instrument_id"],
@@ -399,11 +413,12 @@ async def seed_opportunities(all_scores: list[dict]) -> None:
 
             await session.execute(
                 text("""
-                    INSERT OR REPLACE INTO opportunities
+                    INSERT INTO opportunities
                     (id, instrument_id, date, signal_type, conviction_score,
                      description, metadata, created_at)
                     VALUES (:id, :instrument_id, :date, :signal_type,
                             :conviction_score, :description, :metadata, :created_at)
+                    ON CONFLICT (id) DO NOTHING
                 """),
                 {
                     "id": sig_id,

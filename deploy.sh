@@ -1,13 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-# Momentum Compass — One-command deploy
+# Momentum Compass — One-command deploy to global-pulse.jslwealth.in
 # Run from your Mac: ./deploy.sh
 
 SERVER="13.206.34.214"
 KEY="~/.ssh/jsl-wealth-key.pem"
 SSH="ssh -i $KEY ubuntu@$SERVER"
-PROJECT_DIR="/home/ubuntu/momentum-compass"
+PROJECT_DIR="/home/ubuntu/global-pulse"
 REPO="https://github.com/nimishshah1989/global-pulse.git"
 BRANCH="claude/review-and-plan-architecture-6aWr1"
 
@@ -17,11 +17,11 @@ echo "Deploying Momentum Compass to $SERVER..."
 echo "Syncing code..."
 $SSH "if [ -d $PROJECT_DIR ]; then cd $PROJECT_DIR && git fetch origin && git checkout $BRANCH && git pull origin $BRANCH; else git clone -b $BRANCH $REPO $PROJECT_DIR; fi"
 
-# Step 2: Create .env if not exists
+# Step 2: Create backend .env if not exists
 echo "Setting up environment..."
 $SSH "if [ ! -f $PROJECT_DIR/backend/.env ]; then
   cat > $PROJECT_DIR/backend/.env << 'ENVEOF'
-DATABASE_URL=postgresql+asyncpg://compass:compass_secure_2024@db:5432/momentum_compass
+DATABASE_URL=postgresql+asyncpg://compass:compass_secure_2026@db:5432/momentum_compass
 REDIS_URL=redis://redis:6379
 STOOQ_BASE_URL=https://stooq.com/q/d/l/
 DATA_REFRESH_HOUR=2
@@ -30,7 +30,7 @@ ENVEOF
 fi"
 
 # Step 3: Set postgres password
-$SSH "cd $PROJECT_DIR && echo 'POSTGRES_PASSWORD=compass_secure_2024' > .env"
+$SSH "cd $PROJECT_DIR && echo 'POSTGRES_PASSWORD=compass_secure_2026' > .env"
 
 # Step 4: Build and start
 echo "Building containers..."
@@ -48,23 +48,32 @@ $SSH "docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | grep comp
 
 # Step 6: Setup Nginx (first deploy only)
 echo "Setting up Nginx..."
-$SSH "if [ ! -f /etc/nginx/sites-available/compass.jslwealth.in ]; then
-  sudo cp $PROJECT_DIR/nginx/compass.jslwealth.in.conf /etc/nginx/sites-available/compass.jslwealth.in
-  sudo ln -sf /etc/nginx/sites-available/compass.jslwealth.in /etc/nginx/sites-enabled/
+$SSH "if [ ! -f /etc/nginx/sites-available/global-pulse ]; then
+  sudo cp /etc/nginx/sites-available/global-pulse /etc/nginx/sites-available/global-pulse.bak.\$(date +%Y%m%d) 2>/dev/null || true
+  sudo cp $PROJECT_DIR/deploy/nginx-global-pulse.conf /etc/nginx/sites-available/global-pulse
+  sudo ln -sf /etc/nginx/sites-available/global-pulse /etc/nginx/sites-enabled/
   sudo nginx -t && sudo systemctl reload nginx
   echo 'Nginx configured. Run certbot for SSL:'
-  echo '  sudo certbot --nginx -d compass.jslwealth.in -d compass-api.jslwealth.in'
+  echo '  sudo certbot --nginx -d global-pulse.jslwealth.in'
 else
   echo 'Nginx already configured.'
 fi"
 
-# Step 7: Health check
+# Step 7: Seed database with sample data (first deploy)
+echo "Seeding database..."
+$SSH "cd $PROJECT_DIR && docker compose exec -T backend python scripts/seed_db.py" || echo "Seeding skipped (may already be seeded)"
+
+# Step 8: Health check
 echo "Running health check..."
-HEALTH=$($SSH "curl -s http://localhost:8009/health" 2>/dev/null || echo '{"status":"error"}')
+HEALTH=$($SSH "curl -s http://localhost:8011/health" 2>/dev/null || echo '{"status":"error"}')
 echo "Backend health: $HEALTH"
 
 echo ""
 echo "Deploy complete!"
-echo "   Frontend: https://compass.jslwealth.in"
-echo "   API:      https://compass-api.jslwealth.in"
-echo "   Health:   https://compass-api.jslwealth.in/health"
+echo "   Frontend: http://global-pulse.jslwealth.in"
+echo "   Health:   http://global-pulse.jslwealth.in/health"
+echo ""
+echo "Next steps:"
+echo "  1. SSL: sudo certbot --nginx -d global-pulse.jslwealth.in"
+echo "  2. Fetch real data: docker compose exec backend python scripts/fetch_real_data.py"
+echo "  3. Seed real data:  docker compose exec backend python -m scripts.seed_real_data"

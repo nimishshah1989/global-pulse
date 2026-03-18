@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import WorldChoropleth from '@/components/maps/WorldChoropleth'
 import RegimeBanner from '@/components/common/RegimeBanner'
 import DateNavigator from '@/components/common/DateNavigator'
@@ -140,10 +141,11 @@ function CountrySectors({ countryCode }: { countryCode: string }): JSX.Element {
 
 /* ---------- Country card ---------- */
 
-function CountryCard({ item, isExpanded, onToggle }: {
+function CountryCard({ item, isExpanded, onToggle, onDeepDive }: {
   item: RankingItem
   isExpanded: boolean
   onToggle: () => void
+  onDeepDive: (code: string) => void
 }): JSX.Element {
   const code = item.country ?? ''
   const flag = COUNTRY_FLAGS[code] ?? ''
@@ -193,6 +195,16 @@ function CountryCard({ item, isExpanded, onToggle }: {
                 {item.volume_character ?? '--'}
               </p>
             </div>
+          </div>
+
+          {/* Deep dive link */}
+          <div className="mb-3 flex justify-end">
+            <button
+              onClick={() => onDeepDive(code)}
+              className="rounded-lg bg-primary-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 transition-colors"
+            >
+              Deep Dive &rarr;
+            </button>
           </div>
 
           {/* Sectors within this country */}
@@ -273,6 +285,7 @@ function SectorCountryMatrix({ matrixData }: { matrixData: MatrixData }): JSX.El
 /* ========== MAIN PAGE ========== */
 
 export default function GlobalPulse(): JSX.Element {
+  const navigate = useNavigate()
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const { data: countryData, isLoading: countriesLoading, error: countriesError, refetch: refetchCountries } = useCountryRankings(selectedDate)
   const { data: regimeData } = useRegime()
@@ -330,6 +343,7 @@ export default function GlobalPulse(): JSX.Element {
                 item={item}
                 isExpanded={expandedCountry === item.country}
                 onToggle={() => item.country && toggleCountry(item.country)}
+                onDeepDive={(code) => navigate(`/compass/country/${code}`)}
               />
             ))}
           </div>

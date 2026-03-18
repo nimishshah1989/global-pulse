@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import RRGScatter from '@/components/charts/RRGScatter'
 import RSRankingTable from '@/components/tables/RSRankingTable'
 import RSLineChart from '@/components/charts/RSLineChart'
@@ -55,6 +55,7 @@ function getTrendColor(trend: string | null): string {
 export default function CountryDeepDive(): JSX.Element {
   const { countryCode } = useParams<{ countryCode: string }>()
   const code = countryCode ?? 'US'
+  const navigate = useNavigate()
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const { data: sectorData, isLoading: sectorsLoading, error: sectorsError, refetch: refetchSectors } = useSectorRankings(code, selectedDate)
@@ -200,9 +201,23 @@ export default function CountryDeepDive(): JSX.Element {
 
       <div>
         <RSLineChart data={rsLineData} title={`RS Line — ${displaySectorName} vs ${countryName} Index`} />
-        <p className="mt-2 text-xs text-slate-400">
-          Click a sector card or table row to view its RS line.
-        </p>
+        <div className="mt-2 flex items-center justify-between">
+          <p className="text-xs text-slate-400">
+            Click a sector card or table row to view its RS line.
+          </p>
+          {selectedSectorId && (
+            <button
+              onClick={() => {
+                const sector = sectors.find((s) => s.instrument_id === selectedSectorId)
+                const slug = sector?.sector ?? selectedSectorId
+                navigate(`/compass/country/${code}/sector/${slug}`)
+              }}
+              className="rounded-lg bg-primary-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 transition-colors"
+            >
+              View Stocks in {displaySectorName} &rarr;
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

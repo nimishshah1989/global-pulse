@@ -137,13 +137,16 @@ async def main() -> None:
         for inst in instruments:
             await session.execute(
                 text("""
-                    INSERT OR REPLACE INTO instruments
+                    INSERT INTO instruments
                     (id, name, ticker_stooq, ticker_yfinance, source, asset_type,
                      country, sector, hierarchy_level, benchmark_id, currency,
                      liquidity_tier, is_active)
                     VALUES (:id, :name, :ticker_stooq, :ticker_yfinance, :source,
                             :asset_type, :country, :sector, :hierarchy_level, NULL,
                             :currency, :liquidity_tier, :is_active)
+                    ON CONFLICT (id) DO UPDATE SET
+                        name = EXCLUDED.name, source = EXCLUDED.source,
+                        asset_type = EXCLUDED.asset_type
                 """),
                 {
                     "id": inst["id"],
@@ -184,9 +187,13 @@ async def main() -> None:
             for row in rows:
                 await session.execute(
                     text("""
-                        INSERT OR REPLACE INTO prices
+                        INSERT INTO prices
                         (instrument_id, date, open, high, low, close, volume)
                         VALUES (:iid, :date, :open, :high, :low, :close, :volume)
+                        ON CONFLICT (instrument_id, date) DO UPDATE SET
+                            open = EXCLUDED.open, high = EXCLUDED.high,
+                            low = EXCLUDED.low, close = EXCLUDED.close,
+                            volume = EXCLUDED.volume
                     """),
                     {
                         "iid": iid,
@@ -337,7 +344,7 @@ async def main() -> None:
         for sc in all_scores:
             await session.execute(
                 text("""
-                    INSERT OR REPLACE INTO rs_scores
+                    INSERT INTO rs_scores
                     (instrument_id, date, rs_line, rs_ma_150, rs_trend,
                      rs_pct_1m, rs_pct_3m, rs_pct_6m, rs_pct_12m,
                      rs_composite, rs_momentum, volume_ratio, vol_multiplier,
@@ -348,6 +355,11 @@ async def main() -> None:
                             :rs_composite, :rs_momentum, :volume_ratio, :vol_multiplier,
                             :adjusted_rs_score, :quadrant, :liquidity_tier,
                             :extension_warning, :regime)
+                    ON CONFLICT (instrument_id, date) DO UPDATE SET
+                        rs_line = EXCLUDED.rs_line, rs_ma_150 = EXCLUDED.rs_ma_150,
+                        rs_trend = EXCLUDED.rs_trend, rs_composite = EXCLUDED.rs_composite,
+                        adjusted_rs_score = EXCLUDED.adjusted_rs_score,
+                        quadrant = EXCLUDED.quadrant, regime = EXCLUDED.regime
                 """),
                 {k: sc[k] for k in [
                     "instrument_id", "date", "rs_line", "rs_ma_150", "rs_trend",
@@ -394,11 +406,12 @@ async def main() -> None:
 
                 await session.execute(
                     text("""
-                        INSERT OR REPLACE INTO opportunities
+                        INSERT INTO opportunities
                         (id, instrument_id, date, signal_type, conviction_score,
                          description, metadata, created_at)
                         VALUES (:id, :instrument_id, :date, :signal_type,
                                 :conviction_score, :description, :metadata, :created_at)
+                        ON CONFLICT (id) DO NOTHING
                     """),
                     {
                         "id": str(uuid.uuid4()),

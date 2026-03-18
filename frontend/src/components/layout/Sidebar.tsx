@@ -8,6 +8,8 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { to: '/compass', icon: '\uD83C\uDF0D', label: 'Global Pulse' },
+  { to: '/compass/matrix', icon: '\uD83D\uDD00', label: 'Sector Matrix' },
+  { to: '/compass/baskets', icon: '\uD83D\uDCE6', label: 'My Baskets' },
   { to: '/compass/etfs', icon: '\uD83D\uDCC8', label: 'Top ETFs' },
   { to: '/compass/opportunities', icon: '\uD83C\uDFAF', label: 'Opportunities' },
   { to: '/compass/methodology', icon: '\uD83D\uDCD6', label: 'Methodology' },
