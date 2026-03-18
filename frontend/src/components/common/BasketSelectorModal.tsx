@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useBaskets } from '@/api/hooks/useBaskets'
-import { MOCK_BASKETS } from '@/data/mockBasketData'
 import type { Basket } from '@/types/baskets'
 
 interface BasketSelectorModalProps {
@@ -21,7 +20,7 @@ export default function BasketSelectorModal({
   isAdding = false,
 }: BasketSelectorModalProps): JSX.Element | null {
   const { data: basketsData } = useBaskets()
-  const baskets = basketsData ?? MOCK_BASKETS
+  const baskets: Basket[] = Array.isArray(basketsData) ? basketsData : []
   const activeBaskets = baskets.filter((b: Basket) => b.status === 'active')
 
   const [selectedBasketId, setSelectedBasketId] = useState('')

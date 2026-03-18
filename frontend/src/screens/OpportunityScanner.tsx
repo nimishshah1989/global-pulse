@@ -8,7 +8,6 @@ import LoadingSkeleton from '@/components/common/LoadingSkeleton'
 import ErrorAlert from '@/components/common/ErrorAlert'
 import { formatDate } from '@/utils/format'
 import { useOpportunities, useMultiLevelAlignments } from '@/api/hooks/useOpportunities'
-import { MOCK_ALIGNMENTS, MOCK_OPPORTUNITIES } from '@/data/mockOpportunityData'
 import type { Action } from '@/types/rs'
 
 const SIGNAL_TYPE_OPTIONS: { value: SignalType | ''; label: string }[] = [
@@ -63,8 +62,8 @@ export default function OpportunityScanner(): JSX.Element {
   const { data: opportunitiesData, isLoading: oppsLoading, error: oppsError, refetch: refetchOpps } = useOpportunities(opportunityFilters)
   const { data: alignmentsData, isLoading: alignmentsLoading } = useMultiLevelAlignments()
 
-  const opportunities: Opportunity[] = Array.isArray(opportunitiesData) && opportunitiesData.length > 0 ? opportunitiesData : MOCK_OPPORTUNITIES
-  const alignments: Opportunity[] = Array.isArray(alignmentsData) && alignmentsData.length > 0 ? alignmentsData : MOCK_ALIGNMENTS
+  const opportunities: Opportunity[] = Array.isArray(opportunitiesData) ? opportunitiesData : []
+  const alignments: Opportunity[] = Array.isArray(alignmentsData) ? alignmentsData : []
 
   const nonAlignmentSignals = useMemo(() => {
     return opportunities.filter((opp) => {

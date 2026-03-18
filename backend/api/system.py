@@ -84,15 +84,7 @@ async def get_regime(
             meta=Meta(timestamp=datetime.now(tz=timezone.utc)),
         )
 
-    # Mock fallback
-    return ApiResponse(
-        data={
-            "regime": "RISK_ON",
-            "benchmark": "ACWI",
-            "benchmark_vs_ma200": 1.05,
-        },
-        meta=Meta(timestamp=datetime.now(tz=timezone.utc)),
-    )
+    raise HTTPException(status_code=404, detail="No regime data available")
 
 
 async def _try_db_data_status(
@@ -303,28 +295,26 @@ async def get_matrix(
                         }
             real_scores[country] = country_sectors
 
-        # Fill gaps with deterministic estimates
+        # Only include cells with real data — no gap-filling
         matrix: dict[str, dict[str, dict[str, Any]]] = {}
+        active_countries: list[str] = []
+        active_sectors: set[str] = set()
         for country in MATRIX_COUNTRIES_ORDERED:
-            matrix[country] = {}
-            for sector in MATRIX_SECTORS_ORDERED:
-                if sector in real_scores.get(country, {}):
-                    matrix[country][sector] = real_scores[country][sector]
-                else:
-                    score = _matrix_seed_score(country, sector)
-                    mom_digest = _hashlib.md5(
-                        (country + sector + "mom").encode()
-                    ).hexdigest()
-                    momentum = -30 + (int(mom_digest[:8], 16) / 0xFFFFFFFF) * 60
-                    matrix[country][sector] = {
-                        "score": score,
-                        "action": "WATCH",
-                    }
+            country_data = real_scores.get(country, {})
+            if country_data:
+                matrix[country] = country_data
+                active_countries.append(country)
+                active_sectors.update(country_data.keys())
+
+        # Only show sectors that have at least one real data point
+        ordered_active_sectors = [
+            s for s in MATRIX_SECTORS_ORDERED if s in active_sectors
+        ]
 
         return ApiResponse(
             data={
-                "countries": MATRIX_COUNTRIES_ORDERED,
-                "sectors": MATRIX_SECTORS_ORDERED,
+                "countries": active_countries,
+                "sectors": ordered_active_sectors,
                 "matrix": matrix,
             },
             meta=Meta(timestamp=datetime.now(tz=timezone.utc)),

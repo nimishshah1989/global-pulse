@@ -9,7 +9,6 @@ import LoadingSkeleton from '@/components/common/LoadingSkeleton'
 import ErrorAlert from '@/components/common/ErrorAlert'
 import { useCountryRankings } from '@/api/hooks/useRankings'
 import { useRegime } from '@/api/hooks/useRegime'
-import { MOCK_COUNTRY_DATA } from '@/data/mockCountryData'
 import type { RankingItem } from '@/types/rs'
 
 export default function GlobalPulse(): JSX.Element {
@@ -18,7 +17,7 @@ export default function GlobalPulse(): JSX.Element {
   const { data: countryData, isLoading: countriesLoading, error: countriesError, refetch: refetchCountries } = useCountryRankings(selectedDate)
   const { data: regimeData } = useRegime()
 
-  const rankings: RankingItem[] = Array.isArray(countryData) && countryData.length > 0 ? countryData : MOCK_COUNTRY_DATA
+  const rankings: RankingItem[] = Array.isArray(countryData) ? countryData : []
 
   const handleRowClick = useCallback(
     (item: RankingItem) => {

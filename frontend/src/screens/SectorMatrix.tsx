@@ -6,14 +6,7 @@ import ErrorAlert from '@/components/common/ErrorAlert'
 import { useMatrix } from '@/api/hooks/useMatrix'
 import type { MatrixData } from '@/api/hooks/useMatrix'
 import type { Action } from '@/types/rs'
-import {
-  MATRIX_COUNTRIES,
-  MATRIX_SECTORS,
-  COUNTRY_LABELS,
-  MOCK_COUNTRY_SCORES,
-  MOCK_SECTOR_SCORES,
-  generateMockMatrix,
-} from '@/data/mockMatrixData'
+import { COUNTRY_LABELS } from '@/data/mockMatrixData'
 import type { MatrixCellData } from '@/data/mockMatrixData'
 
 type ViewMode = 'score' | 'action'
@@ -63,8 +56,6 @@ export default function SectorMatrix(): JSX.Element {
 
   const { data: apiData, isLoading, error, refetch } = useMatrix()
 
-  const mockMatrix = useMemo(() => generateMockMatrix(), [])
-
   const {
     countries,
     sectors,
@@ -77,14 +68,14 @@ export default function SectorMatrix(): JSX.Element {
       return transformApiMatrix(apiData)
     }
     return {
-      countries: [...MATRIX_COUNTRIES],
-      sectors: [...MATRIX_SECTORS],
-      matrix: mockMatrix,
+      countries: [],
+      sectors: [],
+      matrix: {} as Record<string, Record<string, MatrixCellData>>,
       countryLabels: COUNTRY_LABELS,
-      countryScores: MOCK_COUNTRY_SCORES,
-      sectorScores: MOCK_SECTOR_SCORES,
+      countryScores: {},
+      sectorScores: {},
     }
-  }, [apiData, mockMatrix])
+  }, [apiData])
 
   function handleCellClick(country: string, sector: string): void {
     const sectorSlug = sector.toLowerCase().replace(/[.\s]+/g, '-')
