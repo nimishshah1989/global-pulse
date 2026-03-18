@@ -23,7 +23,7 @@ export const MOCK_BASKETS: Basket[] = [
   {
     id: 'basket-em-recovery',
     name: 'EM Recovery Play',
-    description: 'Emerging market improving quadrant bets',
+    description: 'Emerging market improving action bets',
     benchmark_id: 'ACWI',
     created_at: '2026-02-20T00:00:00Z',
     status: 'active',
@@ -38,9 +38,9 @@ export const MOCK_BASKET_POSITIONS: BasketPosition[] = [
 ]
 
 export const MOCK_POSITION_DETAILS: (RankingItem & { weight: number; position_return: number })[] = [
-  { instrument_id: 'EWJ_US', name: 'iShares MSCI Japan', country: 'JP', sector: null, adjusted_rs_score: 68.1, rs_momentum: 12.5, quadrant: 'LEADING', rs_pct_1m: 72, rs_pct_3m: 70, rs_pct_6m: 66, rs_pct_12m: 62, volume_ratio: 1.22, rs_trend: 'OUTPERFORMING', liquidity_tier: 1, extension_warning: false, weight: 0.3333, position_return: 14.2 },
-  { instrument_id: 'EWT_US', name: 'iShares MSCI Taiwan', country: 'TW', sector: null, adjusted_rs_score: 58.4, rs_momentum: -2.1, quadrant: 'WEAKENING', rs_pct_1m: 45, rs_pct_3m: 58, rs_pct_6m: 62, rs_pct_12m: 70, volume_ratio: 0.95, rs_trend: 'OUTPERFORMING', liquidity_tier: 1, extension_warning: false, weight: 0.3333, position_return: 8.7 },
-  { instrument_id: 'INDA_US', name: 'iShares MSCI India', country: 'IN', sector: null, adjusted_rs_score: 65.8, rs_momentum: 6.1, quadrant: 'LEADING', rs_pct_1m: 60, rs_pct_3m: 68, rs_pct_6m: 72, rs_pct_12m: 58, volume_ratio: 1.08, rs_trend: 'OUTPERFORMING', liquidity_tier: 1, extension_warning: false, weight: 0.3334, position_return: 11.5 },
+  { instrument_id: 'EWJ_US', name: 'iShares MSCI Japan', country: 'JP', sector: null, asset_type: 'country_etf', rs_line: 105.2, rs_ma: 100.8, price_trend: 'OUTPERFORMING', rs_momentum_pct: 12.5, momentum_trend: 'ACCELERATING', volume_character: 'ACCUMULATION', action: 'BUY', rs_score: 68.1, regime: 'RISK_ON', weight: 0.3333, position_return: 14.2 },
+  { instrument_id: 'EWT_US', name: 'iShares MSCI Taiwan', country: 'TW', sector: null, asset_type: 'country_etf', rs_line: 101.4, rs_ma: 102.1, price_trend: 'UNDERPERFORMING', rs_momentum_pct: -2.1, momentum_trend: 'DECELERATING', volume_character: 'NEUTRAL', action: 'HOLD_FADING', rs_score: 58.4, regime: 'RISK_ON', weight: 0.3333, position_return: 8.7 },
+  { instrument_id: 'INDA_US', name: 'iShares MSCI India', country: 'IN', sector: null, asset_type: 'country_etf', rs_line: 104.1, rs_ma: 101.5, price_trend: 'OUTPERFORMING', rs_momentum_pct: 6.1, momentum_trend: 'ACCELERATING', volume_character: 'ACCUMULATION', action: 'ACCUMULATE', rs_score: 65.8, regime: 'RISK_ON', weight: 0.3334, position_return: 11.5 },
 ]
 
 export const MOCK_BASKET_PERFORMANCE: BasketPerformance = {

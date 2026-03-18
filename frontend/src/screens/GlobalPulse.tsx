@@ -18,7 +18,7 @@ export default function GlobalPulse(): JSX.Element {
   const { data: countryData, isLoading: countriesLoading, error: countriesError, refetch: refetchCountries } = useCountryRankings(selectedDate)
   const { data: regimeData } = useRegime()
 
-  const rankings = countryData ?? MOCK_COUNTRY_DATA
+  const rankings: RankingItem[] = Array.isArray(countryData) ? countryData : MOCK_COUNTRY_DATA
 
   const handleRowClick = useCallback(
     (item: RankingItem) => {

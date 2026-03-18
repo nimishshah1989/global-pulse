@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import type { Quadrant } from '@/types/rs'
+import type { Action } from '@/types/rs'
 
 export interface HeatMapCellData {
   score: number
-  quadrant: Quadrant
+  quadrant: Action
 }
 
 interface HeatMapMatrixProps {
@@ -26,18 +26,26 @@ function getScoreColor(score: number): string {
   return 'bg-red-400 text-white'
 }
 
-const QUADRANT_CELL_STYLES: Record<Quadrant, string> = {
-  LEADING: 'bg-emerald-100 text-emerald-800',
-  WEAKENING: 'bg-amber-100 text-amber-800',
-  LAGGING: 'bg-red-100 text-red-800',
-  IMPROVING: 'bg-blue-100 text-blue-800',
+const ACTION_CELL_STYLES: Record<Action, string> = {
+  BUY: 'bg-emerald-100 text-emerald-800',
+  ACCUMULATE: 'bg-teal-100 text-teal-800',
+  HOLD_DIVERGENCE: 'bg-yellow-100 text-yellow-800',
+  HOLD_FADING: 'bg-yellow-100 text-yellow-800',
+  REDUCE: 'bg-orange-100 text-orange-800',
+  SELL: 'bg-red-100 text-red-800',
+  WATCH: 'bg-blue-100 text-blue-800',
+  AVOID: 'bg-slate-100 text-slate-800',
 }
 
-const QUADRANT_SHORT: Record<Quadrant, string> = {
-  LEADING: 'L',
-  WEAKENING: 'W',
-  LAGGING: 'Lg',
-  IMPROVING: 'I',
+const ACTION_SHORT: Record<Action, string> = {
+  BUY: 'B',
+  ACCUMULATE: 'Acc',
+  HOLD_DIVERGENCE: 'Hd',
+  HOLD_FADING: 'Hf',
+  REDUCE: 'R',
+  SELL: 'S',
+  WATCH: 'W',
+  AVOID: 'Av',
 }
 
 export default function HeatMapMatrix({
@@ -105,12 +113,12 @@ export default function HeatMapMatrix({
                 const cellStyle =
                   mode === 'score'
                     ? getScoreColor(cell.score)
-                    : QUADRANT_CELL_STYLES[cell.quadrant]
+                    : ACTION_CELL_STYLES[cell.quadrant] ?? ACTION_CELL_STYLES.WATCH
 
                 const cellText =
                   mode === 'score'
                     ? cell.score.toFixed(0)
-                    : QUADRANT_SHORT[cell.quadrant]
+                    : ACTION_SHORT[cell.quadrant] ?? '?'
 
                 return (
                   <td

@@ -30,15 +30,18 @@ const COUNTRY_CENTROIDS: Record<string, [number, number]> = {
 }
 
 /** Returns arrow symbol, color class, and label based on RS momentum */
-function getMomentumArrow(rsMomentum: number): {
+function getMomentumArrow(rsMomentumPct: number | null): {
   symbol: string
   colorClass: string
   fillColor: string
 } {
-  if (rsMomentum > 5) {
+  if (rsMomentumPct === null) {
+    return { symbol: '\u25BA', colorClass: 'text-amber-500', fillColor: '#f59e0b' }
+  }
+  if (rsMomentumPct > 5) {
     return { symbol: '\u25B2', colorClass: 'text-emerald-600', fillColor: '#059669' }
   }
-  if (rsMomentum < -5) {
+  if (rsMomentumPct < -5) {
     return { symbol: '\u25BC', colorClass: 'text-red-600', fillColor: '#dc2626' }
   }
   return { symbol: '\u25BA', colorClass: 'text-amber-500', fillColor: '#f59e0b' }
@@ -74,12 +77,10 @@ const colorScale = scaleSequential(interpolateRdYlGn).domain([0, 100])
 interface TooltipData {
   name: string
   score: number
-  quadrant: string
-  rsMomentum: number
-  rsTrend: string
-  rsPct1m: number
-  rsPct3m: number
-  liquidityTier: number
+  action: string
+  rsMomentumPct: number | null
+  priceTrend: string | null
+  volumeCharacter: string | null
   x: number
   y: number
 }
@@ -126,7 +127,7 @@ function WorldChoroplethInner({ data }: WorldChoroplethProps): JSX.Element {
                 const countryCode = ISO_NUMERIC_TO_CODE[isoNumeric]
                 const item = countryCode ? scoreMap.get(countryCode) : undefined
                 const fillColor: string = item
-                  ? (colorScale(item.adjusted_rs_score) ?? '#e2e8f0')
+                  ? (colorScale(item.rs_score) ?? '#e2e8f0')
                   : '#e2e8f0'
 
                 const isPulsing = countryCode === pulsingCountry
@@ -161,13 +162,11 @@ function WorldChoroplethInner({ data }: WorldChoroplethProps): JSX.Element {
                         const rect = target.closest('svg')?.getBoundingClientRect()
                         setTooltip({
                           name: item.name,
-                          score: item.adjusted_rs_score,
-                          quadrant: item.quadrant,
-                          rsMomentum: item.rs_momentum,
-                          rsTrend: item.rs_trend,
-                          rsPct1m: item.rs_pct_1m,
-                          rsPct3m: item.rs_pct_3m,
-                          liquidityTier: item.liquidity_tier,
+                          score: item.rs_score,
+                          action: item.action,
+                          rsMomentumPct: item.rs_momentum_pct,
+                          priceTrend: item.price_trend,
+                          volumeCharacter: item.volume_character,
                           x: evt.clientX - (rect?.left ?? 0),
                           y: evt.clientY - (rect?.top ?? 0),
                         })
@@ -184,7 +183,7 @@ function WorldChoroplethInner({ data }: WorldChoroplethProps): JSX.Element {
             if (!code) return null
             const centroid = COUNTRY_CENTROIDS[code]
             if (!centroid) return null
-            const arrow = getMomentumArrow(item.rs_momentum)
+            const arrow = getMomentumArrow(item.rs_momentum_pct)
             return (
               <Marker key={`arrow-${code}`} coordinates={centroid}>
                 <text
@@ -216,53 +215,40 @@ function WorldChoroplethInner({ data }: WorldChoroplethProps): JSX.Element {
             RS Score:{' '}
             <span className="font-mono font-medium">{tooltip.score.toFixed(1)}</span>
           </p>
-          <p className="text-xs text-slate-600">Quadrant: {tooltip.quadrant}</p>
+          <p className="text-xs text-slate-600">Action: {tooltip.action}</p>
           <p className="text-xs text-slate-600">
-            RS Momentum:{' '}
+            Momentum:{' '}
             <span
               className={`font-mono font-medium ${
-                tooltip.rsMomentum > 0
+                (tooltip.rsMomentumPct ?? 0) > 0
                   ? 'text-emerald-600'
-                  : tooltip.rsMomentum < 0
+                  : (tooltip.rsMomentumPct ?? 0) < 0
                     ? 'text-red-600'
                     : 'text-slate-600'
               }`}
             >
-              {tooltip.rsMomentum > 0 ? '+' : ''}
-              {tooltip.rsMomentum.toFixed(1)}
+              {tooltip.rsMomentumPct !== null
+                ? `${tooltip.rsMomentumPct > 0 ? '+' : ''}${tooltip.rsMomentumPct.toFixed(1)}%`
+                : '-'}
             </span>
           </p>
           <p className="text-xs text-slate-600">
             Trend:{' '}
             <span
               className={`font-medium ${
-                tooltip.rsTrend === 'OUTPERFORMING'
+                tooltip.priceTrend === 'OUTPERFORMING'
                   ? 'text-emerald-600'
                   : 'text-red-600'
               }`}
             >
-              {tooltip.rsTrend}
+              {tooltip.priceTrend ?? '-'}
             </span>
           </p>
-          <div className="mt-1 flex gap-3 text-xs text-slate-600">
-            <span>
-              1M:{' '}
-              <span className="font-mono font-medium">
-                {tooltip.rsPct1m > 0 ? '+' : ''}
-                {tooltip.rsPct1m.toFixed(1)}
-              </span>
-            </span>
-            <span>
-              3M:{' '}
-              <span className="font-mono font-medium">
-                {tooltip.rsPct3m > 0 ? '+' : ''}
-                {tooltip.rsPct3m.toFixed(1)}
-              </span>
-            </span>
-          </div>
-          <p className="text-xs text-slate-500">
-            Liquidity Tier: {tooltip.liquidityTier}
-          </p>
+          {tooltip.volumeCharacter && (
+            <p className="text-xs text-slate-600">
+              Volume: {tooltip.volumeCharacter}
+            </p>
+          )}
         </div>
       )}
 

@@ -1,4 +1,4 @@
-import type { Quadrant } from '@/types/rs'
+import type { Action } from '@/types/rs'
 
 export const MATRIX_COUNTRIES = [
   'US', 'GB', 'DE', 'FR', 'JP', 'HK', 'CN', 'KR', 'IN', 'TW', 'AU', 'BR', 'CA',
@@ -27,11 +27,15 @@ export const COUNTRY_LABELS: Record<string, string> = {
   CA: '\u{1F1E8}\u{1F1E6} CA',
 }
 
-function getQuadrant(score: number, momentum: number): Quadrant {
-  if (score > 50 && momentum > 0) return 'LEADING'
-  if (score > 50 && momentum <= 0) return 'WEAKENING'
-  if (score <= 50 && momentum > 0) return 'IMPROVING'
-  return 'LAGGING'
+function getActionFromScoreMomentum(score: number, momentum: number): Action {
+  if (score > 70 && momentum > 0) return 'BUY'
+  if (score > 60 && momentum > 0) return 'ACCUMULATE'
+  if (score > 50 && momentum > 0) return 'HOLD_DIVERGENCE'
+  if (score > 50 && momentum <= 0) return 'HOLD_FADING'
+  if (score > 40 && momentum > 0) return 'WATCH'
+  if (score > 30) return 'REDUCE'
+  if (score <= 30 && momentum <= 0) return 'SELL'
+  return 'AVOID'
 }
 
 // Seed-based deterministic pseudo-random for consistent mock data
@@ -46,7 +50,7 @@ function seededScore(country: string, sector: string): number {
 
 export interface MatrixCellData {
   score: number
-  quadrant: Quadrant
+  quadrant: Action
 }
 
 export function generateMockMatrix(): Record<string, Record<string, MatrixCellData>> {
@@ -59,7 +63,7 @@ export function generateMockMatrix(): Record<string, Record<string, MatrixCellDa
       const momentum = score > 50 ? (Math.random() > 0.3 ? 5 : -3) : (Math.random() > 0.6 ? 4 : -6)
       matrix[country][sector] = {
         score,
-        quadrant: getQuadrant(score, momentum),
+        quadrant: getActionFromScoreMomentum(score, momentum),
       }
     }
   }

@@ -1,12 +1,9 @@
-"""Ranking service -- business logic for RS score rankings.
-
-Validates inputs and delegates to the ranking repository.
-"""
+"""Ranking service v2 — business logic for RS score rankings."""
 
 import logging
 from datetime import date
 
-from models.rs_scores import RankingItem
+from models.rs_scores import RankingItemV2
 from repositories.instrument_repo import VALID_COUNTRY_CODES, InstrumentRepository
 from repositories.ranking_repo import RankingRepository
 
@@ -14,23 +11,17 @@ logger = logging.getLogger(__name__)
 
 
 class RankingService:
-    """Service layer for ranking operations with input validation."""
+    """Service layer for v2 ranking operations."""
 
     def __init__(
         self,
         ranking_repo: RankingRepository,
         instrument_repo: InstrumentRepository,
     ) -> None:
-        """Initialize with ranking and instrument repositories."""
         self._ranking_repo = ranking_repo
         self._instrument_repo = instrument_repo
 
     def _validate_country_code(self, country_code: str) -> None:
-        """Validate that a country code is supported.
-
-        Raises:
-            ValueError: If the country code is not in the valid set.
-        """
         upper = country_code.upper()
         if upper not in VALID_COUNTRY_CODES:
             raise ValueError(
@@ -39,41 +30,48 @@ class RankingService:
             )
 
     async def get_country_rankings(
-        self, as_of: date | None = None
-    ) -> list[RankingItem]:
-        """Return RS rankings for all country indices."""
+        self, as_of: date | None = None,
+    ) -> list[RankingItemV2]:
         raw = await self._ranking_repo.get_country_rankings(as_of=as_of)
-        return [RankingItem(**item) for item in raw]
+        return [RankingItemV2(**item) for item in raw]
 
     async def get_sector_rankings(
-        self, country_code: str, as_of: date | None = None
-    ) -> list[RankingItem]:
-        """Return RS rankings for sectors within a country.
-
-        Raises:
-            ValueError: If country_code is invalid.
-        """
+        self, country_code: str, as_of: date | None = None,
+    ) -> list[RankingItemV2]:
         self._validate_country_code(country_code)
         raw = await self._ranking_repo.get_sector_rankings(
             country_code.upper(), as_of=as_of
         )
-        return [RankingItem(**item) for item in raw]
+        return [RankingItemV2(**item) for item in raw]
 
     async def get_stock_rankings(
-        self, country_code: str, sector: str
-    ) -> list[RankingItem]:
-        """Return RS rankings for stocks in a country+sector.
-
-        Raises:
-            ValueError: If country_code is invalid.
-        """
+        self, country_code: str, sector: str,
+    ) -> list[RankingItemV2]:
         self._validate_country_code(country_code)
         raw = await self._ranking_repo.get_stock_rankings(
             country_code.upper(), sector.lower()
         )
-        return [RankingItem(**item) for item in raw]
+        return [RankingItemV2(**item) for item in raw]
 
-    async def get_global_sector_rankings(self) -> list[RankingItem]:
-        """Return RS rankings for global sector ETFs."""
+    async def get_global_sector_rankings(self) -> list[RankingItemV2]:
         raw = await self._ranking_repo.get_global_sector_rankings()
-        return [RankingItem(**item) for item in raw]
+        return [RankingItemV2(**item) for item in raw]
+
+    async def get_all_etf_rankings(self) -> list[RankingItemV2]:
+        raw = await self._ranking_repo.get_all_etf_rankings()
+        return [RankingItemV2(**item) for item in raw]
+
+    async def get_top_etfs(
+        self,
+        action_filter: str | None = None,
+        country_filter: str | None = None,
+        sector_filter: str | None = None,
+        limit: int = 50,
+    ) -> list[RankingItemV2]:
+        raw = await self._ranking_repo.get_top_etfs(
+            action_filter=action_filter,
+            country_filter=country_filter,
+            sector_filter=sector_filter,
+            limit=limit,
+        )
+        return [RankingItemV2(**item) for item in raw]

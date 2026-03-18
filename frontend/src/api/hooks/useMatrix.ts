@@ -4,8 +4,8 @@ import apiClient from '@/api/client'
 export interface MatrixCell {
   country: string
   sector: string
-  adjusted_rs_score: number
-  quadrant: string
+  rs_score: number
+  action: string
 }
 
 /**
@@ -43,8 +43,8 @@ function normalizeApiResponse(raw: ApiMatrixResponse): MatrixData {
         cells.push({
           country,
           sector,
-          adjusted_rs_score: cell.score,
-          quadrant: cell.quadrant,
+          rs_score: cell.score,
+          action: cell.quadrant,
         })
         countrySum += cell.score
         countryCount++

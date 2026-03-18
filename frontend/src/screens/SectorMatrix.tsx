@@ -5,7 +5,7 @@ import LoadingSkeleton from '@/components/common/LoadingSkeleton'
 import ErrorAlert from '@/components/common/ErrorAlert'
 import { useMatrix } from '@/api/hooks/useMatrix'
 import type { MatrixData } from '@/api/hooks/useMatrix'
-import type { Quadrant } from '@/types/rs'
+import type { Action } from '@/types/rs'
 import {
   MATRIX_COUNTRIES,
   MATRIX_SECTORS,
@@ -16,14 +16,15 @@ import {
 } from '@/data/mockMatrixData'
 import type { MatrixCellData } from '@/data/mockMatrixData'
 
-type ViewMode = 'score' | 'quadrant'
+type ViewMode = 'score' | 'action'
 
-function getQuadrantFromScoreAndMomentum(score: number): Quadrant {
-  // When we only have a score from the API, approximate the quadrant
-  if (score > 60) return 'LEADING'
-  if (score > 50) return 'WEAKENING'
-  if (score > 35) return 'IMPROVING'
-  return 'LAGGING'
+function getActionFromScore(score: number): Action {
+  if (score > 70) return 'BUY'
+  if (score > 60) return 'ACCUMULATE'
+  if (score > 50) return 'HOLD_FADING'
+  if (score > 40) return 'WATCH'
+  if (score > 30) return 'REDUCE'
+  return 'SELL'
 }
 
 function transformApiMatrix(apiData: MatrixData): {
@@ -39,9 +40,10 @@ function transformApiMatrix(apiData: MatrixData): {
     if (!matrix[cell.country]) {
       matrix[cell.country] = {}
     }
+    const action = (cell.action as Action) ?? getActionFromScore(cell.rs_score)
     matrix[cell.country][cell.sector] = {
-      score: cell.adjusted_rs_score,
-      quadrant: (cell.quadrant as Quadrant) ?? getQuadrantFromScoreAndMomentum(cell.adjusted_rs_score),
+      score: cell.rs_score,
+      quadrant: action,
     }
   }
 
@@ -93,7 +95,7 @@ export default function SectorMatrix(): JSX.Element {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">
-          🔀 Sector Matrix
+          Sector Matrix
         </h1>
         <p className="text-sm text-slate-500">
           Which country's sector is strongest?
@@ -119,16 +121,29 @@ export default function SectorMatrix(): JSX.Element {
           Score View
         </button>
         <button
-          onClick={() => setMode('quadrant')}
+          onClick={() => setMode('action')}
           className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-            mode === 'quadrant'
+            mode === 'action'
               ? 'bg-teal-600 text-white'
               : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
           }`}
         >
-          Quadrant View
+          Action View
         </button>
       </div>
+
+      {/* Action color legend */}
+      {mode === 'action' && (
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          <span className="font-semibold text-slate-500">Legend:</span>
+          {ACTION_LEGEND.map((item) => (
+            <span key={item.label} className="flex items-center gap-1">
+              <span className={`inline-block h-3 w-3 rounded ${item.color}`} />
+              <span className="text-slate-600">{item.label}</span>
+            </span>
+          ))}
+        </div>
+      )}
 
       {isLoading ? (
         <LoadingSkeleton type="table" rows={11} />
@@ -137,7 +152,7 @@ export default function SectorMatrix(): JSX.Element {
           countries={countries}
           sectors={sectors}
           matrix={matrix}
-          mode={mode}
+          mode={mode === 'action' ? 'quadrant' : 'score'}
           onCellClick={handleCellClick}
           countryLabels={countryLabels}
           countryScores={countryScores}
@@ -147,3 +162,13 @@ export default function SectorMatrix(): JSX.Element {
     </div>
   )
 }
+
+const ACTION_LEGEND = [
+  { label: 'Buy', color: 'bg-emerald-500' },
+  { label: 'Accumulate', color: 'bg-teal-500' },
+  { label: 'Hold', color: 'bg-yellow-400' },
+  { label: 'Watch', color: 'bg-blue-500' },
+  { label: 'Reduce', color: 'bg-orange-500' },
+  { label: 'Sell', color: 'bg-red-500' },
+  { label: 'Avoid', color: 'bg-slate-400' },
+]

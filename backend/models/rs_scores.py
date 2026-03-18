@@ -1,13 +1,55 @@
-"""Pydantic v2 models for RS score, ranking, and RRG API responses.
+"""Pydantic v2 models for RS v2 API responses.
 
-Note: RS scores use float (not Decimal) for JSON serialization.
-These are display scores (0-100), not currency values.
-Decimal precision is maintained in the engine and database layers.
+RS v2 uses 3 indicators (Price Trend, Momentum, OBV) and an 8-action matrix.
 """
 
 import datetime
 
 from pydantic import BaseModel, ConfigDict
+
+
+class RankingItemV2(BaseModel):
+    """Single item in a v2 ranking list."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    instrument_id: str
+    name: str
+    country: str | None = None
+    sector: str | None = None
+    asset_type: str | None = None
+    # Indicator 1: Price Trend
+    rs_line: float | None = None
+    rs_ma: float | None = None
+    price_trend: str | None = None
+    # Indicator 2: Momentum
+    rs_momentum_pct: float | None = None
+    momentum_trend: str | None = None
+    # Indicator 3: OBV
+    volume_character: str | None = None
+    # Action
+    action: str = "WATCH"
+    # Score for sorting (0-100)
+    rs_score: float = 50.0
+    # Regime
+    regime: str = "RISK_ON"
+
+    # Legacy compatibility fields (map new to old for smooth transition)
+    @property
+    def adjusted_rs_score(self) -> float:
+        return self.rs_score
+
+    @property
+    def quadrant(self) -> str:
+        return self.action
+
+    @property
+    def rs_momentum(self) -> float:
+        return self.rs_momentum_pct or 0.0
+
+
+# Keep old model name as alias for import compatibility
+RankingItem = RankingItemV2
 
 
 class RSScoreResponse(BaseModel):
@@ -18,49 +60,14 @@ class RSScoreResponse(BaseModel):
     instrument_id: str
     date: datetime.date
     rs_line: float | None = None
-    rs_ma_150: float | None = None
-    rs_trend: str | None = None
-    rs_pct_1m: float | None = None
-    rs_pct_3m: float | None = None
-    rs_pct_6m: float | None = None
-    rs_pct_12m: float | None = None
-    rs_composite: float | None = None
-    rs_momentum: float | None = None
-    volume_ratio: float | None = None
-    vol_multiplier: float | None = None
-    adjusted_rs_score: float | None = None
-    quadrant: str | None = None
-    liquidity_tier: int | None = None
-    extension_warning: bool = False
+    rs_ma: float | None = None
+    price_trend: str | None = None
+    rs_momentum_pct: float | None = None
+    momentum_trend: str | None = None
+    volume_character: str | None = None
+    action: str = "WATCH"
+    rs_score: float = 50.0
     regime: str = "RISK_ON"
-
-
-class RankingItem(BaseModel):
-    """Single item in a ranking list."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    instrument_id: str
-    name: str
-    country: str | None = None
-    sector: str | None = None
-    adjusted_rs_score: float | None = None
-    quadrant: str | None = None
-    rs_momentum: float | None = None
-    volume_ratio: float | None = None
-    rs_trend: str | None = None
-    rs_pct_1m: float | None = None
-    rs_pct_3m: float | None = None
-    rs_pct_6m: float | None = None
-    rs_pct_12m: float | None = None
-    liquidity_tier: int | None = None
-    extension_warning: bool = False
-
-
-class RankingResponse(BaseModel):
-    """Ranked list of instruments by RS score."""
-
-    items: list[RankingItem]
 
 
 class RRGTrailPoint(BaseModel):
@@ -78,7 +85,8 @@ class RRGDataPoint(BaseModel):
     name: str
     rs_score: float
     rs_momentum: float
-    quadrant: str | None = None
+    action: str | None = None
+    volume_character: str | None = None
     trail: list[RRGTrailPoint] = []
 
 

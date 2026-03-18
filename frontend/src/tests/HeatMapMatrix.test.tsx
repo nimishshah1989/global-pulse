@@ -8,16 +8,16 @@ const sectors = ['Technology', 'Financials']
 
 const matrix: Record<string, Record<string, HeatMapCellData>> = {
   US: {
-    Technology: { score: 78, quadrant: 'LEADING' },
-    Financials: { score: 65, quadrant: 'LEADING' },
+    Technology: { score: 78, quadrant: 'BUY' },
+    Financials: { score: 65, quadrant: 'ACCUMULATE' },
   },
   JP: {
-    Technology: { score: 45, quadrant: 'LAGGING' },
-    Financials: { score: 58, quadrant: 'WEAKENING' },
+    Technology: { score: 45, quadrant: 'REDUCE' },
+    Financials: { score: 58, quadrant: 'HOLD_FADING' },
   },
   IN: {
-    Technology: { score: 62, quadrant: 'LEADING' },
-    Financials: { score: 35, quadrant: 'IMPROVING' },
+    Technology: { score: 62, quadrant: 'ACCUMULATE' },
+    Financials: { score: 35, quadrant: 'WATCH' },
   },
 }
 
@@ -52,7 +52,7 @@ describe('HeatMapMatrix', () => {
     expect(screen.getByTestId('cell-US-Technology').textContent).toBe('78')
   })
 
-  it('shows quadrant labels in quadrant mode', () => {
+  it('shows action labels in quadrant mode', () => {
     render(
       <HeatMapMatrix
         countries={countries}
@@ -62,8 +62,8 @@ describe('HeatMapMatrix', () => {
         onCellClick={vi.fn()}
       />,
     )
-    // 'L' for LEADING in US-Technology
-    expect(screen.getByTestId('cell-US-Technology').textContent).toBe('L')
+    // 'B' for BUY in US-Technology
+    expect(screen.getByTestId('cell-US-Technology').textContent).toBe('B')
   })
 
   it('calls onCellClick when cell is clicked', async () => {

@@ -3,7 +3,10 @@ import { select } from 'd3-selection'
 import { scaleLinear } from 'd3-scale'
 import { axisBottom, axisLeft } from 'd3-axis'
 import { line as d3Line, curveCatmullRom } from 'd3-shape'
-import type { RRGDataPoint, Quadrant } from '@/types/rs'
+import type { RRGDataPoint } from '@/types/rs'
+
+/** Visual quadrant on the RRG chart, determined by position (not the Action type) */
+type Quadrant = 'LEADING' | 'WEAKENING' | 'LAGGING' | 'IMPROVING'
 
 type TrailWeeksOption = 4 | 8 | 12
 
@@ -37,6 +40,13 @@ const QUADRANT_META: Record<Quadrant, { icon: string; label: string }> = {
 }
 
 const TRAIL_OPTIONS: TrailWeeksOption[] = [4, 8, 12]
+
+function getQuadrant(rsScore: number, rsMomentum: number): Quadrant {
+  if (rsScore > 50 && rsMomentum > 0) return 'LEADING'
+  if (rsScore > 50 && rsMomentum <= 0) return 'WEAKENING'
+  if (rsScore <= 50 && rsMomentum > 0) return 'IMPROVING'
+  return 'LAGGING'
+}
 
 function shortenName(name: string): string {
   return name
@@ -274,7 +284,8 @@ export default function RRGScatter({
 
     // Draw each data point's trail + dot
     data.forEach((point) => {
-      const color = DOT_COLORS[point.quadrant]
+      const quadrant = getQuadrant(point.rs_score, point.rs_momentum)
+      const color = DOT_COLORS[quadrant]
       const trail = point.trail.slice(-maxTrailPoints)
       const isHovered = hoveredId === point.id
       const isDimmed = hoveredId !== null && hoveredId !== point.id
@@ -370,11 +381,9 @@ export default function RRGScatter({
       const tooltip = tooltipRef.current
       if (!tooltip) return
 
-      const quadMeta = QUADRANT_META[point.quadrant]
-      const quadColor = DOT_COLORS[point.quadrant]
-      const volRatioStr = point.volume_ratio !== undefined
-        ? point.volume_ratio.toFixed(2)
-        : '--'
+      const pointQuadrant = getQuadrant(point.rs_score, point.rs_momentum)
+      const quadMeta = QUADRANT_META[pointQuadrant]
+      const quadColor = DOT_COLORS[pointQuadrant]
 
       tooltip.innerHTML = `
         <div style="font-weight:600;font-size:13px;margin-bottom:4px;color:#0f172a;">
@@ -387,8 +396,6 @@ export default function RRGScatter({
           <span style="font-weight:600;font-variant-numeric:tabular-nums;">${point.rs_momentum > 0 ? '+' : ''}${point.rs_momentum.toFixed(1)}</span>
           <span style="color:#64748b;">Quadrant</span>
           <span style="color:${quadColor};font-weight:600;">${quadMeta.icon} ${quadMeta.label}</span>
-          <span style="color:#64748b;">Vol Ratio</span>
-          <span style="font-weight:600;font-variant-numeric:tabular-nums;">${volRatioStr}</span>
         </div>
       `
       tooltip.style.opacity = '1'

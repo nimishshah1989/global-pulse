@@ -295,11 +295,11 @@ async def get_matrix(
                 if display_sector and display_sector in MATRIX_SECTORS_ORDERED:
                     # Keep best score if multiple instruments map to same sector
                     existing = country_sectors.get(display_sector)
-                    score = float(item["adjusted_rs_score"])
+                    score = float(item.get("rs_score", item.get("adjusted_rs_score", 50)))
                     if existing is None or score > existing["score"]:
                         country_sectors[display_sector] = {
                             "score": score,
-                            "quadrant": item["quadrant"],
+                            "action": item.get("action", item.get("quadrant", "WATCH")),
                         }
             real_scores[country] = country_sectors
 
@@ -318,9 +318,7 @@ async def get_matrix(
                     momentum = -30 + (int(mom_digest[:8], 16) / 0xFFFFFFFF) * 60
                     matrix[country][sector] = {
                         "score": score,
-                        "quadrant": _determine_quadrant_simple(
-                            score, momentum
-                        ),
+                        "action": "WATCH",
                     }
 
         return ApiResponse(

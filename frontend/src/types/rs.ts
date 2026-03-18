@@ -1,43 +1,38 @@
-export type Quadrant = 'LEADING' | 'WEAKENING' | 'LAGGING' | 'IMPROVING'
+export type Action = 'BUY' | 'HOLD_DIVERGENCE' | 'HOLD_FADING' | 'REDUCE' | 'SELL' | 'WATCH' | 'ACCUMULATE' | 'AVOID'
+export type PriceTrend = 'OUTPERFORMING' | 'UNDERPERFORMING'
+export type MomentumTrend = 'ACCELERATING' | 'DECELERATING'
+export type VolumeCharacter = 'ACCUMULATION' | 'DISTRIBUTION' | 'NEUTRAL'
 export type Regime = 'RISK_ON' | 'RISK_OFF'
 
-export interface RSScore {
-  instrument_id: string
-  date: string
-  rs_line: number
-  rs_ma_150: number
-  rs_trend: 'OUTPERFORMING' | 'UNDERPERFORMING'
-  rs_pct_1m: number
-  rs_pct_3m: number
-  rs_pct_6m: number
-  rs_pct_12m: number
-  rs_composite: number
-  rs_momentum: number
-  volume_ratio: number
-  vol_multiplier: number
-  adjusted_rs_score: number
-  quadrant: Quadrant
-  liquidity_tier: number
-  extension_warning: boolean
-  regime: Regime
-}
+// Quadrant labels used for RRG scatter display
+export type Quadrant = 'LEADING' | 'WEAKENING' | 'LAGGING' | 'IMPROVING'
 
 export interface RankingItem {
   instrument_id: string
   name: string
   country: string | null
   sector: string | null
-  adjusted_rs_score: number
-  rs_momentum: number
-  quadrant: Quadrant
-  rs_pct_1m: number
-  rs_pct_3m: number
-  rs_pct_6m: number
-  rs_pct_12m: number
-  volume_ratio: number
-  rs_trend: string
-  liquidity_tier: number
-  extension_warning: boolean
+  asset_type: string | null
+  // Indicator 1: Price Trend
+  rs_line: number | null
+  rs_ma: number | null
+  price_trend: PriceTrend | null
+  // Indicator 2: Momentum
+  rs_momentum_pct: number | null
+  momentum_trend: MomentumTrend | null
+  // Indicator 3: OBV
+  volume_character: VolumeCharacter | null
+  // Action
+  action: Action
+  // Score for sorting
+  rs_score: number
+  // Regime
+  regime: Regime
+}
+
+// Backward compat
+export interface RSScore extends RankingItem {
+  date: string
 }
 
 export interface RRGTrailPoint {
@@ -51,7 +46,7 @@ export interface RRGDataPoint {
   name: string
   rs_score: number
   rs_momentum: number
-  quadrant: Quadrant
-  volume_ratio?: number
+  action: Action | null
+  volume_character: string | null
   trail: RRGTrailPoint[]
 }

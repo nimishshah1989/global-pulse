@@ -15,7 +15,13 @@ from models.instruments import InstrumentResponse
 from models.prices import PriceResponse
 from models.rs_scores import RSScoreResponse
 from repositories.instrument_repo import InstrumentRepository
-from repositories.ranking_repo import _seed_float
+import hashlib as _hashlib
+
+
+def _seed_float(instrument_id: str, salt: str = "") -> float:
+    """Deterministic float in [0,1) for mock fallback."""
+    digest = _hashlib.md5((instrument_id + salt).encode()).hexdigest()
+    return int(digest[:8], 16) / 0xFFFFFFFF
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/instruments", tags=["instruments"])
@@ -205,20 +211,13 @@ async def _try_db_rs_scores(
                 instrument_id=row.instrument_id,
                 date=row.date,
                 rs_line=float(row.rs_line) if row.rs_line is not None else None,
-                rs_ma_150=float(row.rs_ma_150) if row.rs_ma_150 is not None else None,
-                rs_trend=row.rs_trend,
-                rs_pct_1m=float(row.rs_pct_1m) if row.rs_pct_1m is not None else None,
-                rs_pct_3m=float(row.rs_pct_3m) if row.rs_pct_3m is not None else None,
-                rs_pct_6m=float(row.rs_pct_6m) if row.rs_pct_6m is not None else None,
-                rs_pct_12m=float(row.rs_pct_12m) if row.rs_pct_12m is not None else None,
-                rs_composite=float(row.rs_composite) if row.rs_composite is not None else None,
-                rs_momentum=float(row.rs_momentum) if row.rs_momentum is not None else None,
-                volume_ratio=float(row.volume_ratio) if row.volume_ratio is not None else None,
-                vol_multiplier=float(row.vol_multiplier) if row.vol_multiplier is not None else None,
-                adjusted_rs_score=float(row.adjusted_rs_score) if row.adjusted_rs_score is not None else None,
-                quadrant=row.quadrant,
-                liquidity_tier=row.liquidity_tier,
-                extension_warning=row.extension_warning or False,
+                rs_ma=float(row.rs_ma_150) if row.rs_ma_150 is not None else None,
+                price_trend=row.rs_trend,
+                rs_momentum_pct=float(row.rs_momentum) if row.rs_momentum is not None else None,
+                momentum_trend="ACCELERATING" if (row.rs_momentum or 0) > 0 else "DECELERATING",
+                volume_character="ACCUMULATION" if (row.volume_ratio or 0) > 0.5 else "DISTRIBUTION",
+                action=row.quadrant or "WATCH",
+                rs_score=float(row.adjusted_rs_score) if row.adjusted_rs_score is not None else 50.0,
                 regime=row.regime or "RISK_ON",
             )
             for row in rows

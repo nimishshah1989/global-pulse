@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { SignalType, Opportunity } from '@/types/opportunities'
+import ActionBadge from '@/components/common/QuadrantBadge'
 import SignalTypeBadge from '@/components/common/SignalTypeBadge'
 import AlignmentCard from '@/components/common/AlignmentCard'
 import LoadingSkeleton from '@/components/common/LoadingSkeleton'
@@ -8,12 +9,13 @@ import ErrorAlert from '@/components/common/ErrorAlert'
 import { formatDate } from '@/utils/format'
 import { useOpportunities, useMultiLevelAlignments } from '@/api/hooks/useOpportunities'
 import { MOCK_ALIGNMENTS, MOCK_OPPORTUNITIES } from '@/data/mockOpportunityData'
+import type { Action } from '@/types/rs'
 
 const SIGNAL_TYPE_OPTIONS: { value: SignalType | ''; label: string }[] = [
   { value: '', label: 'All Signals' },
   { value: 'multi_level_alignment', label: 'Multi-Level Alignment' },
-  { value: 'quadrant_entry_leading', label: 'Entry: Leading' },
-  { value: 'quadrant_entry_improving', label: 'Entry: Improving' },
+  { value: 'quadrant_entry_leading', label: 'Action: Buy' },
+  { value: 'quadrant_entry_improving', label: 'Action: Accumulate' },
   { value: 'volume_breakout', label: 'Volume Breakout' },
   { value: 'bearish_divergence', label: 'Bearish Divergence' },
   { value: 'bullish_divergence', label: 'Bullish Divergence' },
@@ -27,6 +29,20 @@ const LEVEL_OPTIONS = [
   { value: '2', label: 'Sector' },
   { value: '3', label: 'Stock' },
 ]
+
+function getActionFromSignalType(signalType: SignalType): Action {
+  switch (signalType) {
+    case 'quadrant_entry_leading': return 'BUY'
+    case 'quadrant_entry_improving': return 'ACCUMULATE'
+    case 'volume_breakout': return 'BUY'
+    case 'multi_level_alignment': return 'BUY'
+    case 'bearish_divergence': return 'REDUCE'
+    case 'bullish_divergence': return 'WATCH'
+    case 'regime_change': return 'WATCH'
+    case 'extension_alert': return 'HOLD_FADING'
+    default: return 'WATCH'
+  }
+}
 
 export default function OpportunityScanner(): JSX.Element {
   const navigate = useNavigate()
@@ -47,8 +63,8 @@ export default function OpportunityScanner(): JSX.Element {
   const { data: opportunitiesData, isLoading: oppsLoading, error: oppsError, refetch: refetchOpps } = useOpportunities(opportunityFilters)
   const { data: alignmentsData, isLoading: alignmentsLoading } = useMultiLevelAlignments()
 
-  const opportunities = opportunitiesData ?? MOCK_OPPORTUNITIES
-  const alignments = alignmentsData ?? MOCK_ALIGNMENTS
+  const opportunities: Opportunity[] = Array.isArray(opportunitiesData) ? opportunitiesData : MOCK_OPPORTUNITIES
+  const alignments: Opportunity[] = Array.isArray(alignmentsData) ? alignmentsData : MOCK_ALIGNMENTS
 
   const nonAlignmentSignals = useMemo(() => {
     return opportunities.filter((opp) => {
@@ -60,7 +76,6 @@ export default function OpportunityScanner(): JSX.Element {
   }, [opportunities, signalTypeFilter, convictionMin])
 
   const handleSignalClick = useCallback((opp: Opportunity): void => {
-    // Navigate based on signal metadata or instrument
     const meta = opp.metadata
     if (meta && typeof meta.country === 'string' && typeof meta.sector === 'string') {
       const sectorSlug = (meta.sector as string).toLowerCase().replace(/[\s.]+/g, '-')
@@ -77,7 +92,7 @@ export default function OpportunityScanner(): JSX.Element {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">
-          🎯 Opportunity Scanner
+          Opportunity Scanner
         </h1>
         <p className="text-sm text-slate-500">
           What should I be paying attention to today?
@@ -175,21 +190,12 @@ export default function OpportunityScanner(): JSX.Element {
             <table className="w-full text-sm">
               <thead className="border-b border-slate-200 bg-slate-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Date
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Instrument
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Signal Type
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Conviction
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Description
-                  </th>
+                  <Th>Date</Th>
+                  <Th>Instrument</Th>
+                  <Th>Signal Type</Th>
+                  <Th>Action</Th>
+                  <Th>Conviction</Th>
+                  <Th>Description</Th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -207,6 +213,9 @@ export default function OpportunityScanner(): JSX.Element {
                     </td>
                     <td className="px-4 py-3">
                       <SignalTypeBadge signalType={opp.signal_type} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <ActionBadge action={getActionFromSignalType(opp.signal_type)} />
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -232,5 +241,13 @@ export default function OpportunityScanner(): JSX.Element {
         )}
       </div>
     </div>
+  )
+}
+
+function Th({ children }: { children?: React.ReactNode }): JSX.Element {
+  return (
+    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+      {children}
+    </th>
   )
 }

@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { formatPercent, formatDate } from '@/utils/format'
-import QuadrantBadge from '@/components/common/QuadrantBadge'
+import ActionBadge from '@/components/common/QuadrantBadge'
 import PerformanceStats from '@/components/common/PerformanceStats'
 import CreateBasketModal from '@/components/common/CreateBasketModal'
 import AddPositionModal from '@/components/common/AddPositionModal'
@@ -16,6 +16,7 @@ import {
   generateMockNAVHistory,
 } from '@/data/mockBasketData'
 import type { Basket, BasketWithPositions } from '@/types/baskets'
+import type { Action } from '@/types/rs'
 
 function BasketListView(): JSX.Element {
   const navigate = useNavigate()
@@ -24,7 +25,7 @@ function BasketListView(): JSX.Element {
   const { data: basketsData, isLoading, error, refetch } = useBaskets()
   const createBasketMutation = useCreateBasket()
 
-  const baskets = basketsData ?? MOCK_BASKETS
+  const baskets: Basket[] = Array.isArray(basketsData) ? basketsData : MOCK_BASKETS
 
   function handleCreate(data: {
     name: string
@@ -43,7 +44,7 @@ function BasketListView(): JSX.Element {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">📦 My Baskets</h1>
+          <h1 className="text-2xl font-bold text-slate-900">My Baskets</h1>
           <p className="text-sm text-slate-500">
             Create, simulate, and track investment theses
           </p>
@@ -106,29 +107,33 @@ function BasketListView(): JSX.Element {
 
 function BasketDetailView({ basketId }: { basketId: string }): JSX.Element {
   const navigate = useNavigate()
-  const { data: basketData, isLoading, error, refetch } = useBasket(basketId) as { data: BasketWithPositions | undefined; isLoading: boolean; error: Error | null; refetch: () => void }
+  const { data: basketData, isLoading, error, refetch } = useBasket(basketId) as {
+    data: BasketWithPositions | undefined
+    isLoading: boolean
+    error: Error | null
+    refetch: () => void
+  }
   const addPositionMutation = useAddPosition()
   const removePositionMutation = useRemovePosition()
   const [showAddPosition, setShowAddPosition] = useState(false)
   const [showCompare, setShowCompare] = useState(false)
 
   const { data: allBasketsData } = useBaskets()
-  const allBaskets = allBasketsData ?? MOCK_BASKETS
+  const allBaskets: Basket[] = Array.isArray(allBasketsData) ? allBasketsData : MOCK_BASKETS
   const otherBaskets = allBaskets.filter((b: Basket) => b.id !== basketId && b.status === 'active')
 
   const basket = basketData ?? MOCK_BASKETS.find((b) => b.id === basketId) ?? MOCK_BASKETS[0]
   const navHistory = useMemo(() => generateMockNAVHistory(), [])
 
   const positions = useMemo(() => {
-    if (basketData?.positions && basketData.positions.length > 0) {
+    if (basketData?.positions && Array.isArray(basketData.positions) && basketData.positions.length > 0) {
       return basketData.positions.map((pos) => ({
         instrument_id: pos.instrument_id,
         name: pos.instrument_id.replace(/_/g, ' '),
         weight: pos.weight,
         position_return: 0,
-        adjusted_rs_score: 50,
-        rs_momentum: 0,
-        quadrant: 'LEADING' as const,
+        rs_score: 50,
+        action: 'WATCH' as Action,
       }))
     }
     return MOCK_POSITION_DETAILS
@@ -212,27 +217,16 @@ function BasketDetailView({ basketId }: { basketId: string }): JSX.Element {
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Instrument
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Weight
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Return
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  RS Score
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Quadrant
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                </th>
+                <Th>Instrument</Th>
+                <Th>Weight</Th>
+                <Th>Return</Th>
+                <Th>RS Score</Th>
+                <Th>Action</Th>
+                <Th></Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {positions.map((pos) => (
+              {Array.isArray(positions) && positions.map((pos) => (
                 <tr key={pos.instrument_id} className="hover:bg-slate-50">
                   <td className="px-4 py-3">
                     <div>
@@ -253,10 +247,10 @@ function BasketDetailView({ basketId }: { basketId: string }): JSX.Element {
                     </span>
                   </td>
                   <td className="px-4 py-3 font-mono font-semibold text-slate-900">
-                    {pos.adjusted_rs_score.toFixed(1)}
+                    {pos.rs_score.toFixed(1)}
                   </td>
                   <td className="px-4 py-3">
-                    <QuadrantBadge quadrant={pos.quadrant} />
+                    <ActionBadge action={pos.action} />
                   </td>
                   <td className="px-4 py-3">
                     <button
@@ -321,6 +315,14 @@ function BasketDetailView({ basketId }: { basketId: string }): JSX.Element {
         isAdding={addPositionMutation.isPending}
       />
     </div>
+  )
+}
+
+function Th({ children }: { children?: React.ReactNode }): JSX.Element {
+  return (
+    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+      {children}
+    </th>
   )
 }
 

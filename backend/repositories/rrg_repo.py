@@ -81,7 +81,7 @@ def _build_rrg_point(instrument: dict[str, Any]) -> dict[str, Any]:
     mom_raw = _seed_float(iid, "momentum")
     momentum = round(-30 + mom_raw * 60, 2)
 
-    quadrant = _determine_quadrant(score, momentum)
+    action = _determine_quadrant(score, momentum)
 
     trail = _generate_trail(iid, score, momentum)
 
@@ -90,7 +90,7 @@ def _build_rrg_point(instrument: dict[str, Any]) -> dict[str, Any]:
         "name": instrument["name"],
         "rs_score": score,
         "rs_momentum": momentum,
-        "quadrant": quadrant,
+        "action": action,
         "trail": trail,
     }
 
@@ -107,7 +107,7 @@ def _build_rrg_from_db(
     latest = scores[0]  # most recent
     rs_score = float(latest.adjusted_rs_score) if latest.adjusted_rs_score is not None else 50.0
     rs_momentum = float(latest.rs_momentum) if latest.rs_momentum is not None else 0.0
-    quadrant = latest.quadrant or _determine_quadrant(rs_score, rs_momentum)
+    action = latest.quadrant or "WATCH"
 
     # Build trail from historical scores (weekly samples)
     trail: list[dict[str, Any]] = []
@@ -129,7 +129,7 @@ def _build_rrg_from_db(
         "name": instrument.name,
         "rs_score": rs_score,
         "rs_momentum": rs_momentum,
-        "quadrant": quadrant,
+        "action": action,
         "trail": trail,
     }
 

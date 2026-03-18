@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import type { RankingItem } from '@/types/rs'
+import ActionBadge from '@/components/common/QuadrantBadge'
 import { COUNTRY_FLAGS, COUNTRY_NAMES } from '@/data/mockCountryData'
 
 interface TopBottomStripProps {
@@ -8,7 +9,7 @@ interface TopBottomStripProps {
 
 export default function TopBottomStrip({ data }: TopBottomStripProps): JSX.Element {
   const navigate = useNavigate()
-  const sorted = [...data].sort((a, b) => b.adjusted_rs_score - a.adjusted_rs_score)
+  const sorted = [...data].sort((a, b) => b.rs_score - a.rs_score)
   const top5 = sorted.slice(0, 5)
   const bottom5 = sorted.slice(-5).reverse()
 
@@ -32,8 +33,9 @@ export default function TopBottomStrip({ data }: TopBottomStripProps): JSX.Eleme
                   {COUNTRY_NAMES[code] ?? code}
                 </span>
                 <span className="font-mono text-xs font-semibold text-emerald-700">
-                  {item.adjusted_rs_score.toFixed(1)}
+                  {item.rs_score.toFixed(1)}
                 </span>
+                <ActionBadge action={item.action} />
               </div>
             )
           })}
@@ -58,8 +60,9 @@ export default function TopBottomStrip({ data }: TopBottomStripProps): JSX.Eleme
                   {COUNTRY_NAMES[code] ?? code}
                 </span>
                 <span className="font-mono text-xs font-semibold text-red-700">
-                  {item.adjusted_rs_score.toFixed(1)}
+                  {item.rs_score.toFixed(1)}
                 </span>
+                <ActionBadge action={item.action} />
               </div>
             )
           })}

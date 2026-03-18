@@ -47,3 +47,22 @@ export function useGlobalSectorRankings() {
     },
   })
 }
+
+export function useTopETFs(
+  action?: string,
+  country?: string,
+  sector?: string,
+  limit: number = 50,
+) {
+  return useQuery<RankingItem[]>({
+    queryKey: ['rankings', 'etfs', 'top', action, country, sector, limit],
+    queryFn: async () => {
+      const params: Record<string, string | number> = { limit }
+      if (action) params.action = action
+      if (country) params.country = country
+      if (sector) params.sector = sector
+      const response = await apiClient.get<RankingItem[]>('/rankings/etfs/top', { params })
+      return response.data
+    },
+  })
+}

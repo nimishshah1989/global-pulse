@@ -1,34 +1,34 @@
-import type { Quadrant } from '@/types/rs'
+import type { Action } from '@/types/rs'
 
 interface FilterBarProps {
-  selectedQuadrants: Quadrant[]
-  onQuadrantsChange: (quadrants: Quadrant[]) => void
-  liquidityTier: number | null
-  onLiquidityChange: (tier: number | null) => void
+  selectedActions: Action[]
+  onActionsChange: (actions: Action[]) => void
   rsMinimum: number
   onRsMinimumChange: (value: number) => void
 }
 
-const QUADRANTS: { value: Quadrant; label: string; color: string }[] = [
-  { value: 'LEADING', label: 'Leading', color: 'accent-emerald-600' },
-  { value: 'WEAKENING', label: 'Weakening', color: 'accent-amber-600' },
-  { value: 'LAGGING', label: 'Lagging', color: 'accent-red-600' },
-  { value: 'IMPROVING', label: 'Improving', color: 'accent-blue-600' },
+const ACTIONS: { value: Action; label: string; color: string }[] = [
+  { value: 'BUY', label: 'Buy', color: 'accent-emerald-600' },
+  { value: 'ACCUMULATE', label: 'Accumulate', color: 'accent-teal-600' },
+  { value: 'HOLD_DIVERGENCE', label: 'Hold (Divergence)', color: 'accent-yellow-600' },
+  { value: 'HOLD_FADING', label: 'Hold (Fading)', color: 'accent-yellow-600' },
+  { value: 'REDUCE', label: 'Reduce', color: 'accent-orange-600' },
+  { value: 'SELL', label: 'Sell', color: 'accent-red-600' },
+  { value: 'WATCH', label: 'Watch', color: 'accent-blue-600' },
+  { value: 'AVOID', label: 'Avoid', color: 'accent-slate-600' },
 ]
 
 export default function FilterBar({
-  selectedQuadrants,
-  onQuadrantsChange,
-  liquidityTier,
-  onLiquidityChange,
+  selectedActions,
+  onActionsChange,
   rsMinimum,
   onRsMinimumChange,
 }: FilterBarProps): JSX.Element {
-  function handleQuadrantToggle(quadrant: Quadrant): void {
-    if (selectedQuadrants.includes(quadrant)) {
-      onQuadrantsChange(selectedQuadrants.filter((q) => q !== quadrant))
+  function handleActionToggle(action: Action): void {
+    if (selectedActions.includes(action)) {
+      onActionsChange(selectedActions.filter((a) => a !== action))
     } else {
-      onQuadrantsChange([...selectedQuadrants, quadrant])
+      onActionsChange([...selectedActions, action])
     }
   }
 
@@ -37,48 +37,28 @@ export default function FilterBar({
       className="flex flex-wrap items-center gap-6 rounded-xl border border-slate-200 bg-white px-5 py-3"
       data-testid="filter-bar"
     >
-      {/* Quadrant filter */}
+      {/* Action filter */}
       <div className="flex items-center gap-3">
         <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-          Quadrant
+          Action
         </span>
-        <div className="flex items-center gap-2">
-          {QUADRANTS.map((q) => (
+        <div className="flex flex-wrap items-center gap-2">
+          {ACTIONS.map((a) => (
             <label
-              key={q.value}
+              key={a.value}
               className="flex cursor-pointer items-center gap-1.5 text-sm text-slate-700"
             >
               <input
                 type="checkbox"
-                checked={selectedQuadrants.includes(q.value)}
-                onChange={() => handleQuadrantToggle(q.value)}
-                className={`h-3.5 w-3.5 rounded border-slate-300 ${q.color}`}
-                data-testid={`quadrant-${q.value}`}
+                checked={selectedActions.includes(a.value)}
+                onChange={() => handleActionToggle(a.value)}
+                className={`h-3.5 w-3.5 rounded border-slate-300 ${a.color}`}
+                data-testid={`action-${a.value}`}
               />
-              {q.label}
+              {a.label}
             </label>
           ))}
         </div>
-      </div>
-
-      {/* Liquidity filter */}
-      <div className="flex items-center gap-3">
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-          Liquidity
-        </span>
-        <select
-          value={liquidityTier ?? ''}
-          onChange={(e) =>
-            onLiquidityChange(e.target.value ? Number(e.target.value) : null)
-          }
-          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-          data-testid="liquidity-select"
-        >
-          <option value="">All</option>
-          <option value="1">Tier 1 (High)</option>
-          <option value="2">Tier 2 (Medium)</option>
-          <option value="3">Tier 3 (Low)</option>
-        </select>
       </div>
 
       {/* RS minimum slider */}

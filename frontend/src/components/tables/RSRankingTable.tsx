@@ -8,8 +8,8 @@ import {
   type SortingState,
 } from '@tanstack/react-table'
 import { useState } from 'react'
-import type { RankingItem } from '@/types/rs'
-import QuadrantBadge from '@/components/common/QuadrantBadge'
+import type { RankingItem, PriceTrend, MomentumTrend, VolumeCharacter } from '@/types/rs'
+import ActionBadge from '@/components/common/QuadrantBadge'
 import { COUNTRY_FLAGS, COUNTRY_NAMES } from '@/data/mockCountryData'
 
 interface RSRankingTableProps {
@@ -22,24 +22,57 @@ interface RSRankingTableProps {
 
 const columnHelper = createColumnHelper<RankingItem>()
 
-function formatPct(value: number): string {
+function formatPct(value: number | null): string {
+  if (value === null) return '--'
   const prefix = value > 0 ? '+' : ''
   return `${prefix}${value.toFixed(1)}`
 }
 
-function TrendArrow({ trend }: { trend: string }): JSX.Element {
+function TrendArrow({ trend }: { trend: PriceTrend | null }): JSX.Element {
   if (trend === 'OUTPERFORMING') {
     return (
-      <svg className="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-      </svg>
+      <span className="inline-flex items-center gap-1">
+        <svg className="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+        </svg>
+        <span className="text-xs text-emerald-600 font-medium">Out</span>
+      </span>
     )
   }
-  return (
-    <svg className="h-4 w-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-    </svg>
-  )
+  if (trend === 'UNDERPERFORMING') {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <svg className="h-4 w-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+        <span className="text-xs text-red-600 font-medium">Under</span>
+      </span>
+    )
+  }
+  return <span className="text-xs text-slate-400">--</span>
+}
+
+function MomentumLabel({ trend }: { trend: MomentumTrend | null }): JSX.Element {
+  if (trend === 'ACCELERATING') {
+    return <span className="text-xs font-medium text-emerald-600">Accel</span>
+  }
+  if (trend === 'DECELERATING') {
+    return <span className="text-xs font-medium text-red-600">Decel</span>
+  }
+  return <span className="text-xs text-slate-400">--</span>
+}
+
+function VolumeLabel({ character }: { character: VolumeCharacter | null }): JSX.Element {
+  if (character === 'ACCUMULATION') {
+    return <span className="text-xs font-semibold text-emerald-600">ACCUM</span>
+  }
+  if (character === 'DISTRIBUTION') {
+    return <span className="text-xs font-semibold text-red-600">DIST</span>
+  }
+  if (character === 'NEUTRAL') {
+    return <span className="text-xs text-slate-400">Neutral</span>
+  }
+  return <span className="text-xs text-slate-400">--</span>
 }
 
 export default function RSRankingTable({
@@ -50,7 +83,7 @@ export default function RSRankingTable({
   loading = false,
 }: RSRankingTableProps): JSX.Element {
   const [sorting, setSorting] = useState<SortingState>([
-    { id: 'adjusted_rs_score', desc: true },
+    { id: 'rs_score', desc: true },
   ])
 
   const columns = useMemo(() => {
@@ -91,7 +124,7 @@ export default function RSRankingTable({
     }
 
     cols.push(
-      columnHelper.accessor('adjusted_rs_score', {
+      columnHelper.accessor('rs_score', {
         header: 'RS Score',
         cell: (info) => (
           <span className="font-mono font-semibold text-slate-900">
@@ -100,52 +133,34 @@ export default function RSRankingTable({
         ),
         sortingFn: 'basic',
       }),
-      columnHelper.accessor('quadrant', {
-        header: 'Quadrant',
-        cell: (info) => <QuadrantBadge quadrant={info.getValue()} />,
+      columnHelper.accessor('action', {
+        header: 'Action',
+        cell: (info) => <ActionBadge action={info.getValue()} />,
         sortingFn: 'alphanumeric',
       }),
-      columnHelper.accessor('rs_momentum', {
-        header: 'Momentum',
+      columnHelper.accessor('price_trend', {
+        header: 'Price Trend',
+        cell: (info) => <TrendArrow trend={info.getValue()} />,
+        sortingFn: 'alphanumeric',
+      }),
+      columnHelper.accessor('rs_momentum_pct', {
+        header: 'Momentum %',
         cell: (info) => {
           const val = info.getValue()
+          if (val === null) return <span className="text-slate-400">--</span>
           const color = val > 0 ? 'text-emerald-600' : val < 0 ? 'text-red-600' : 'text-slate-500'
           return <span className={`font-mono font-medium ${color}`}>{formatPct(val)}</span>
         },
         sortingFn: 'basic',
       }),
-      columnHelper.accessor('rs_pct_1m', {
-        header: '1M',
-        cell: (info) => <span className="font-mono text-slate-700">{info.getValue().toFixed(0)}</span>,
-        sortingFn: 'basic',
+      columnHelper.accessor('momentum_trend', {
+        header: 'Mom. Trend',
+        cell: (info) => <MomentumLabel trend={info.getValue()} />,
+        sortingFn: 'alphanumeric',
       }),
-      columnHelper.accessor('rs_pct_3m', {
-        header: '3M',
-        cell: (info) => <span className="font-mono text-slate-700">{info.getValue().toFixed(0)}</span>,
-        sortingFn: 'basic',
-      }),
-      columnHelper.accessor('rs_pct_6m', {
-        header: '6M',
-        cell: (info) => <span className="font-mono text-slate-700">{info.getValue().toFixed(0)}</span>,
-        sortingFn: 'basic',
-      }),
-      columnHelper.accessor('rs_pct_12m', {
-        header: '12M',
-        cell: (info) => <span className="font-mono text-slate-700">{info.getValue().toFixed(0)}</span>,
-        sortingFn: 'basic',
-      }),
-      columnHelper.accessor('volume_ratio', {
-        header: 'Vol Ratio',
-        cell: (info) => {
-          const val = info.getValue()
-          const color = val >= 1.0 ? 'text-emerald-600' : 'text-red-600'
-          return <span className={`font-mono font-medium ${color}`}>{val.toFixed(2)}</span>
-        },
-        sortingFn: 'basic',
-      }),
-      columnHelper.accessor('rs_trend', {
-        header: 'Trend',
-        cell: (info) => <TrendArrow trend={info.getValue()} />,
+      columnHelper.accessor('volume_character', {
+        header: 'Volume',
+        cell: (info) => <VolumeLabel character={info.getValue()} />,
         sortingFn: 'alphanumeric',
       }),
     )

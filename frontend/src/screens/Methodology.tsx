@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react'
 const TOC = [
   { id: 'philosophy', label: 'Core Philosophy' },
   { id: 'not-this', label: 'What This Tool Is NOT' },
-  { id: 'pipeline', label: 'RS Engine Pipeline' },
-  { id: 'rrg', label: 'RRG Quadrant Rotation' },
+  { id: 'indicators', label: 'Three Indicators' },
+  { id: 'actions', label: 'Action Matrix (8 Actions)' },
   { id: 'hierarchy', label: 'Three-Level Hierarchy' },
   { id: 'alignment', label: 'Multi-Level Alignment' },
   { id: 'reading', label: 'Reading the Charts' },
@@ -48,14 +48,13 @@ export default function Methodology(): JSX.Element {
       <div className="min-w-0 flex-1 space-y-8 pb-24">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Methodology & How It Works</h1>
-          <p className="mt-1 text-sm text-slate-500">The complete Relative Strength engine behind Momentum Compass &mdash; every formula, every threshold, fully auditable.</p>
+          <p className="mt-1 text-sm text-slate-500">The v2 RS engine uses 3 indicators and an 8-action matrix &mdash; fully auditable, no black boxes.</p>
         </div>
 
         {/* Philosophy */}
         <Section id="philosophy" title="Core Philosophy">
           <p>Global liquidity flows like water &mdash; from weak markets to strong markets, from lagging sectors to leading sectors. <strong>Volume is the width of the river</strong>: it tells you how much capital is actually flowing.</p>
-          <p className="mt-2">Relative Strength (RS) captures this flow numerically. An asset with rising RS and rising volume has institutional capital flowing in. An asset with falling RS and rising volume is being distributed. An asset with rising RS but falling volume is drifting up on thin air &mdash; it won&apos;t last.</p>
-          <p className="mt-2">Every RS score, every ranking, every signal is traceable to a simple, auditable formula. No black boxes. No arbitrary thresholds that can&apos;t be explained.</p>
+          <p className="mt-2">Relative Strength (RS) captures this flow numerically. The v2 engine distills everything into <strong>3 observable indicators</strong> and maps them to <strong>8 clear actions</strong>. Every recommendation is traceable to these indicators.</p>
         </Section>
 
         {/* What This Tool Is NOT */}
@@ -75,37 +74,66 @@ export default function Methodology(): JSX.Element {
           </div>
         </Section>
 
-        {/* RS Engine Pipeline */}
-        <Section id="pipeline" title="RS Engine Pipeline (10 Stages)">
-          <div className="space-y-6">
-            {PIPELINE_STAGES.map((s) => (
-              <div key={s.stage} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
-                <h4 className="font-semibold text-slate-800">Stage {s.stage}: {s.title}</h4>
-                <Code>{s.formula}</Code>
-                <p className="mt-2 text-sm text-slate-600">{s.explanation}</p>
-                <div className="mt-2 rounded-lg border border-teal-100 bg-teal-50/60 px-3 py-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-teal-600">Example</span>
-                  <p className="mt-0.5 font-mono text-xs text-teal-800">{s.example}</p>
-                </div>
-                {s.extra}
-              </div>
-            ))}
+        {/* Three Indicators */}
+        <Section id="indicators" title="Three Indicators">
+          <p className="mb-4">The v2 engine uses exactly 3 indicators. Each captures a different dimension of relative strength.</p>
+          <div className="space-y-4">
+            <IndicatorCard
+              number={1}
+              title="Price Trend (RS Line vs MA)"
+              formula="RS_Line = (Close_asset / Close_benchmark) x 100"
+              subFormula="RS_MA = SMA(RS_Line, 150 days)"
+              output="OUTPERFORMING (RS above MA) or UNDERPERFORMING (RS below MA)"
+              explanation="The RS Line divided by its 150-day moving average determines if the asset is in a structural uptrend or downtrend relative to its benchmark. This is the Mansfield Relative Strength approach."
+              color="border-blue-200 bg-blue-50/50"
+            />
+            <IndicatorCard
+              number={2}
+              title="Momentum (RS Rate of Change)"
+              formula="RS_Momentum_Pct = ((RS_Line[today] / RS_Line[20 days ago]) - 1) x 100"
+              output="ACCELERATING (positive) or DECELERATING (negative)"
+              explanation="Measures whether relative performance is improving or deteriorating over the last 20 trading days. Positive = gaining relative strength. Negative = losing relative strength."
+              color="border-teal-200 bg-teal-50/50"
+            />
+            <IndicatorCard
+              number={3}
+              title="OBV (On-Balance Volume Character)"
+              formula="OBV trend analysis: rising OBV = ACCUMULATION, falling OBV = DISTRIBUTION"
+              output="ACCUMULATION, DISTRIBUTION, or NEUTRAL"
+              explanation="On-Balance Volume reveals whether smart money is accumulating (buying into) or distributing (selling out of) the asset. Volume confirms or denies the price trend."
+              color="border-purple-200 bg-purple-50/50"
+            />
           </div>
         </Section>
 
-        {/* RRG Visual Explainer */}
-        <Section id="rrg" title="RRG Quadrant Rotation">
-          <p className="mb-4">Instruments rotate clockwise through four quadrants over time. The Relative Rotation Graph (RRG) plots RS Score on the X-axis and RS Momentum on the Y-axis.</p>
-          <RRGDiagram />
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            {QUADRANTS.map((q) => (
-              <div key={q.name} className={`rounded-lg border px-3 py-2 ${q.color}`}>
-                <span className="font-semibold">{q.name}</span>
-                <p className="mt-0.5 text-xs opacity-80">{q.desc}</p>
-                <p className="mt-1 text-[10px] font-medium opacity-60">Trading: {q.trading}</p>
-              </div>
-            ))}
+        {/* Action Matrix */}
+        <Section id="actions" title="Action Matrix (8 Actions)">
+          <p className="mb-4">The 3 indicators combine into 8 possible actions. Each action has a clear definition based on which indicators are positive/negative.</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Action</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Price Trend</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Momentum</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">OBV</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Meaning</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {ACTION_MATRIX.map((row) => (
+                  <tr key={row.action} className={row.rowBg}>
+                    <td className={`px-3 py-2 font-semibold ${row.actionColor}`}>{row.action}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{row.priceTrend}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{row.momentum}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{row.obv}</td>
+                    <td className="px-3 py-2 text-xs text-slate-600">{row.meaning}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+          <p className="mt-3 text-xs text-slate-500">The weight recommendation (Overweight / Neutral / Reduce / Underweight / Watch / Accumulate / Avoid) maps directly from the action.</p>
         </Section>
 
         {/* Hierarchy */}
@@ -134,17 +162,16 @@ export default function Methodology(): JSX.Element {
 
         {/* Multi-Level Alignment */}
         <Section id="alignment" title="Multi-Level Alignment">
-          <p className="mb-3">The highest-conviction signal occurs when all three hierarchy levels align in the same quadrant. Capital flows confirm at every level.</p>
+          <p className="mb-3">The highest-conviction signal occurs when all three hierarchy levels show BUY action. Capital flows confirm at every level.</p>
           <div className="flex flex-col items-start gap-0">
             {[
-              { emoji: '\uD83C\uDF0D', label: 'India', detail: 'LEADING globally', rs: 72, bg: 'bg-blue-50 border-blue-200' },
-              { emoji: '\uD83D\uDCCA', label: 'NIFTY IT', detail: 'LEADING within India', rs: 78, bg: 'bg-teal-50 border-teal-200' },
-              { emoji: '\uD83D\uDD0D', label: 'TCS', detail: 'LEADING within NIFTY IT', rs: 85, bg: 'bg-purple-50 border-purple-200' },
+              { label: 'India', detail: 'BUY globally', rs: 72, bg: 'bg-blue-50 border-blue-200' },
+              { label: 'NIFTY IT', detail: 'BUY within India', rs: 78, bg: 'bg-teal-50 border-teal-200' },
+              { label: 'TCS', detail: 'BUY within NIFTY IT', rs: 85, bg: 'bg-purple-50 border-purple-200' },
             ].map((item, i) => (
               <div key={item.label} className="flex items-center gap-3">
                 {i > 0 && <div className="ml-6 h-4 w-px bg-slate-300" />}
-                <div className={`flex items-center gap-2 rounded-lg border px-4 py-2 ${item.bg} ${i > 0 ? 'ml-' + (i * 4) : ''}`}>
-                  <span className="text-lg">{item.emoji}</span>
+                <div className={`flex items-center gap-2 rounded-lg border px-4 py-2 ${item.bg}`}>
                   <div>
                     <span className="font-semibold text-slate-800">{item.label}</span>
                     <span className="ml-2 text-xs text-slate-500">{item.detail}</span>
@@ -154,7 +181,7 @@ export default function Methodology(): JSX.Element {
               </div>
             ))}
           </div>
-          <p className="mt-3 text-xs text-slate-500">When country + sector + stock are all in LEADING, the trade has the wind at its back at every level. This is the highest-conviction output of the system.</p>
+          <p className="mt-3 text-xs text-slate-500">When country + sector + stock are all BUY, the trade has the wind at its back at every level. This is the highest-conviction output of the system.</p>
         </Section>
 
         {/* Reading the Charts */}
@@ -162,15 +189,15 @@ export default function Methodology(): JSX.Element {
           <div className="space-y-4">
             <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
               <h4 className="font-semibold text-slate-800">RS Line Chart</h4>
-              <p className="mt-1 text-sm text-slate-600">The <span className="font-semibold text-blue-600">blue line</span> is the RS ratio; the <span className="font-semibold text-amber-600">orange line</span> is the 150-day moving average. Blue above orange = <span className="font-semibold text-emerald-600">outperforming</span>. Blue below orange = <span className="font-semibold text-red-600">underperforming</span>. Crossovers are regime change signals.</p>
+              <p className="mt-1 text-sm text-slate-600">The <span className="font-semibold text-blue-600">blue line</span> is the RS ratio; the <span className="font-semibold text-amber-600">orange line</span> is the 150-day moving average. Blue above orange = <span className="font-semibold text-emerald-600">OUTPERFORMING</span>. Blue below orange = <span className="font-semibold text-red-600">UNDERPERFORMING</span>. Crossovers are regime change signals.</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
               <h4 className="font-semibold text-slate-800">RRG Scatter Plot</h4>
-              <p className="mt-1 text-sm text-slate-600">Dots move clockwise: Improving (bottom-left) to Leading (top-right) to Weakening (bottom-right) to Lagging (bottom-left). Trailing tails show 4&ndash;8 weeks of trajectory. Dots moving toward the top-right corner are gaining both absolute strength and momentum.</p>
+              <p className="mt-1 text-sm text-slate-600">Dots are plotted on RS Score (X) vs RS Momentum (Y). Trailing tails show 4&ndash;8 weeks of trajectory. Dots in the top-right (high score + positive momentum) correspond to BUY actions. Bottom-left = SELL/AVOID territory.</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
               <h4 className="font-semibold text-slate-800">Heatmap Matrix</h4>
-              <p className="mt-1 text-sm text-slate-600">Rows = sectors, columns = countries. Each cell shows the Adjusted RS Score colored from red (weak) to green (strong). Look for entire rows that are green (globally strong sector) or entire columns that are green (broadly strong country). Bright green cells where both the row and column headers are also strong represent the best opportunities.</p>
+              <p className="mt-1 text-sm text-slate-600">Rows = sectors, columns = countries. Each cell shows the RS Score colored from red (weak) to green (strong). In Action View, cells display the recommended action (BUY, SELL, etc.) with corresponding colors.</p>
             </div>
           </div>
         </Section>
@@ -199,11 +226,11 @@ export default function Methodology(): JSX.Element {
           <div className="mb-4 grid gap-4 sm:grid-cols-2">
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <h4 className="font-semibold text-slate-800">Stooq (Primary)</h4>
-              <p className="mt-1 text-sm text-slate-600">US, UK, Japan, Hong Kong stocks &amp; ETFs (~25,000 instruments). Global indices, currencies, bonds, commodities. Bulk CSV download + daily refresh at 02:00 UTC.</p>
+              <p className="mt-1 text-sm text-slate-600">US, UK, Japan, Hong Kong stocks &amp; ETFs (~25,000 instruments). Global indices, currencies, bonds, commodities.</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <h4 className="font-semibold text-slate-800">yfinance (Gap-fill)</h4>
-              <p className="mt-1 text-sm text-slate-600">India, South Korea, China A-shares, Taiwan, Australia, Brazil, Canada. Daily refresh after each market&apos;s close.</p>
+              <p className="mt-1 text-sm text-slate-600">India, South Korea, China A-shares, Taiwan, Australia, Brazil, Canada.</p>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -238,10 +265,6 @@ function Section({ id, title, children }: { id: string; title: string; children:
   )
 }
 
-function Code({ children }: { children: React.ReactNode }): JSX.Element {
-  return <code className="mt-1 block rounded-lg bg-slate-100 px-3 py-2 font-mono text-xs text-slate-800">{children}</code>
-}
-
 function HierarchyCard({ level, title, description, color }: { level: number; title: string; description: string; color: string }): JSX.Element {
   return (
     <div className={`rounded-xl border p-4 ${color}`}>
@@ -265,97 +288,43 @@ function SignalCard({ name, description, conviction }: { name: string; descripti
   )
 }
 
-function RRGDiagram(): JSX.Element {
+function IndicatorCard({ number, title, formula, subFormula, output, explanation, color }: {
+  number: number; title: string; formula: string; subFormula?: string; output: string; explanation: string; color: string
+}): JSX.Element {
   return (
-    <svg viewBox="0 0 320 240" className="mx-auto w-full max-w-md rounded-xl border border-slate-200 bg-white" role="img" aria-label="RRG Quadrant diagram showing clockwise rotation">
-      {/* Grid lines */}
-      <line x1="160" y1="10" x2="160" y2="230" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4" />
-      <line x1="10" y1="120" x2="310" y2="120" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4" />
-      {/* Axis labels */}
-      <text x="160" y="238" textAnchor="middle" className="fill-slate-400" fontSize="9" fontFamily="Inter">RS Score &rarr;</text>
-      <text x="6" y="120" textAnchor="middle" className="fill-slate-400" fontSize="9" fontFamily="Inter" transform="rotate(-90,6,120)">RS Momentum &rarr;</text>
-      {/* Quadrant backgrounds */}
-      <rect x="160" y="10" width="150" height="110" fill="#d1fae5" opacity="0.3" rx="4" />
-      <rect x="160" y="120" width="150" height="110" fill="#fef3c7" opacity="0.3" rx="4" />
-      <rect x="10" y="120" width="150" height="110" fill="#fee2e2" opacity="0.3" rx="4" />
-      <rect x="10" y="10" width="150" height="110" fill="#dbeafe" opacity="0.3" rx="4" />
-      {/* Quadrant names */}
-      <text x="235" y="55" textAnchor="middle" fontSize="13" fontWeight="700" className="fill-emerald-700">LEADING</text>
-      <text x="235" y="70" textAnchor="middle" fontSize="8" className="fill-emerald-600">RS &gt; 50, Mom &gt; 0</text>
-      <text x="235" y="165" textAnchor="middle" fontSize="13" fontWeight="700" className="fill-amber-700">WEAKENING</text>
-      <text x="235" y="180" textAnchor="middle" fontSize="8" className="fill-amber-600">RS &gt; 50, Mom &le; 0</text>
-      <text x="85" y="165" textAnchor="middle" fontSize="13" fontWeight="700" className="fill-red-700">LAGGING</text>
-      <text x="85" y="180" textAnchor="middle" fontSize="8" className="fill-red-600">RS &le; 50, Mom &le; 0</text>
-      <text x="85" y="55" textAnchor="middle" fontSize="13" fontWeight="700" className="fill-blue-700">IMPROVING</text>
-      <text x="85" y="70" textAnchor="middle" fontSize="8" className="fill-blue-600">RS &le; 50, Mom &gt; 0</text>
-      {/* Clockwise rotation arrows */}
-      <defs><marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="#64748b" /></marker></defs>
-      <path d="M180,40 Q270,30 270,100" fill="none" stroke="#64748b" strokeWidth="1.5" markerEnd="url(#arr)" opacity="0.6" />
-      <path d="M270,140 Q270,210 180,210" fill="none" stroke="#64748b" strokeWidth="1.5" markerEnd="url(#arr)" opacity="0.6" />
-      <path d="M140,210 Q50,210 50,140" fill="none" stroke="#64748b" strokeWidth="1.5" markerEnd="url(#arr)" opacity="0.6" />
-      <path d="M50,100 Q50,30 140,35" fill="none" stroke="#64748b" strokeWidth="1.5" markerEnd="url(#arr)" opacity="0.6" />
-      {/* Center labels */}
-      <text x="160" y="15" textAnchor="middle" fontSize="7" className="fill-slate-400">50</text>
-      <text x="310" y="117" textAnchor="end" fontSize="7" className="fill-slate-400">0</text>
-    </svg>
+    <div className={`rounded-xl border p-4 ${color}`}>
+      <div className="mb-1 text-xs font-bold uppercase tracking-wider text-slate-500">Indicator {number}</div>
+      <h4 className="font-semibold text-slate-800">{title}</h4>
+      <code className="mt-1 block rounded-lg bg-slate-100 px-3 py-2 font-mono text-xs text-slate-800">{formula}</code>
+      {subFormula && <code className="mt-1 block rounded-lg bg-slate-100 px-3 py-2 font-mono text-xs text-slate-800">{subFormula}</code>}
+      <div className="mt-2 rounded-lg border border-teal-100 bg-teal-50/60 px-3 py-2">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-teal-600">Output</span>
+        <p className="mt-0.5 font-mono text-xs text-teal-800">{output}</p>
+      </div>
+      <p className="mt-2 text-xs text-slate-600">{explanation}</p>
+    </div>
   )
 }
 
 /* ---------- Data ---------- */
 
-const QUADRANTS = [
-  { name: 'Leading', color: 'bg-emerald-100 text-emerald-800 border-emerald-200', desc: 'RS > 50, Momentum > 0 -- Strong and getting stronger', trading: 'Hold or add to winners. Highest-conviction positions.' },
-  { name: 'Weakening', color: 'bg-amber-100 text-amber-800 border-amber-200', desc: 'RS > 50, Momentum <= 0 -- Strong but losing steam', trading: 'Tighten stops. Prepare to rotate out if momentum keeps falling.' },
-  { name: 'Lagging', color: 'bg-red-100 text-red-800 border-red-200', desc: 'RS <= 50, Momentum <= 0 -- Weak and getting weaker', trading: 'Avoid. Capital is flowing out. No bottom-fishing.' },
-  { name: 'Improving', color: 'bg-blue-100 text-blue-800 border-blue-200', desc: 'RS <= 50, Momentum > 0 -- Weak but turning around', trading: 'Early-stage watchlist. Wait for entry into Leading to confirm.' },
-]
-
-const WEIGHT_BAR = (
-  <div className="mt-2 flex h-5 overflow-hidden rounded-full text-[10px] font-bold">
-    <div className="flex items-center justify-center bg-teal-200 text-teal-800" style={{ width: '10%' }}>10%</div>
-    <div className="flex items-center justify-center bg-teal-300 text-teal-900" style={{ width: '25%' }}>25%</div>
-    <div className="flex items-center justify-center bg-teal-500 text-white" style={{ width: '35%' }}>35%</div>
-    <div className="flex items-center justify-center bg-teal-400 text-teal-900" style={{ width: '30%' }}>30%</div>
-  </div>
-)
-
-const VOL_CURVE = (
-  <div className="mt-2 flex items-end gap-1">
-    {[
-      { ratio: '< 0.5', mult: '0.85', h: 'h-6', bg: 'bg-red-300' },
-      { ratio: '0.5-1.0', mult: '1.00', h: 'h-8', bg: 'bg-slate-300' },
-      { ratio: '1.0-1.5', mult: '1.00-1.15', h: 'h-10', bg: 'bg-emerald-300' },
-      { ratio: '> 1.5', mult: '1.15', h: 'h-12', bg: 'bg-emerald-500' },
-    ].map((b) => (
-      <div key={b.ratio} className="flex flex-1 flex-col items-center">
-        <span className="font-mono text-[10px] text-slate-600">{b.mult}</span>
-        <div className={`w-full rounded-t ${b.h} ${b.bg}`} />
-        <span className="mt-1 text-[9px] text-slate-500">{b.ratio}</span>
-      </div>
-    ))}
-    <span className="ml-1 self-end text-[9px] text-slate-400">Vol Ratio</span>
-  </div>
-)
-
-const PIPELINE_STAGES = [
-  { stage: 1, title: 'RS Ratio (Raw RS Line)', formula: 'RS_Line[t] = (Close_asset[t] / Close_benchmark[t]) \u00D7 100', explanation: 'Normalized to 100 at the start of the lookback window. When it rises, the asset outperforms its benchmark; when it falls, it underperforms.', example: 'Apple: RS_Line = ($182.50 / $5,243) \u00D7 100 = 3.48 \u2014 if this rises from yesterday\'s 3.41, Apple is outperforming the S&P 500.' },
-  { stage: 2, title: 'RS Trend (Mansfield RS)', formula: 'RS_MA[t] = SMA(RS_Line, 150 trading days)', explanation: 'RS_Line above its 150-day SMA = OUTPERFORMING. Below = UNDERPERFORMING. The 150-day window (~30 weeks) follows the Stan Weinstein / Mansfield standard \u2014 slow enough to filter noise, fast enough to catch regime changes within 1\u20132 months.', example: 'If RS_Line = 3.48 and RS_MA_150 = 3.32, then RS_Line > RS_MA \u2192 OUTPERFORMING.' },
-  { stage: 3, title: 'Percentile Rank', formula: 'Excess_Return_nM = Asset_Return_nM \u2212 Benchmark_Return_nM\nRS_Percentile_nM = percentile_rank(Excess_Return_nM, within=peer_group)', explanation: 'For each timeframe (1M, 3M, 6M, 12M), compute excess return vs benchmark, then rank within the peer group on a 0\u2013100 percentile scale. We use percentile rank (NOT z-scores) because RS ratios violate normal distribution assumptions.', example: 'Apple 6M return: +18%. S&P 500 6M return: +12%. Excess: +6%. If 82 out of 100 peers had lower excess return \u2192 RS_Percentile_6M = 82.' },
-  { stage: 4, title: 'Multi-Timeframe Composite', formula: 'RS_Composite = 1M \u00D7 0.10 + 3M \u00D7 0.25 + 6M \u00D7 0.35 + 12M \u00D7 0.30', explanation: 'The 6-month window gets the heaviest weight (35%) as the primary momentum window. Result: a 0\u2013100 score where higher = stronger relative performer across all timeframes.', example: '1M=70, 3M=75, 6M=82, 12M=68 \u2192 (70\u00D70.10)+(75\u00D70.25)+(82\u00D70.35)+(68\u00D70.30) = 7.0+18.75+28.7+20.4 = 74.85', extra: <div className="mt-2"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Weight distribution: 1M | 3M | 6M | 12M</span>{WEIGHT_BAR}</div> },
-  { stage: 5, title: 'RS Momentum (Rate of Change)', formula: 'RS_Momentum = RS_Composite[today] \u2212 RS_Composite[20 trading days ago]\nRS_Momentum_Normalized = clip(RS_Momentum, \u221250, +50)', explanation: 'Positive = RS is improving (gaining strength vs peers). Negative = RS is deteriorating. Normalized to \u221250 to +50 for consistent plotting on the RRG Y-axis.', example: 'RS_Composite today = 74.85, 20 days ago = 69.20 \u2192 Momentum = +5.65 (improving).' },
-  { stage: 6, title: 'Volume Conviction Adjustment', formula: 'Volume_Ratio = SMA(Volume, 20) / SMA(Volume, 100)\nAdjusted_RS_Score = RS_Composite \u00D7 vol_multiplier', explanation: 'Volume_Ratio > 1.0 means recent participation exceeds the long-term average (conviction). The multiplier is conservative: 0.85x to 1.15x. High volume confirms the signal; thin volume discounts it.', example: 'SMA_20_Vol = 12M shares, SMA_100_Vol = 8M shares \u2192 Vol_Ratio = 1.5 \u2192 multiplier = 1.15 \u2192 Adjusted = 74.85 \u00D7 1.15 = 86.08', extra: <div className="mt-2"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Multiplier curve by volume ratio</span>{VOL_CURVE}</div> },
-  { stage: 7, title: 'Quadrant Classification (RRG)', formula: 'LEADING    = Adjusted_RS > 50 AND Momentum > 0\nWEAKENING  = Adjusted_RS > 50 AND Momentum \u2264 0\nLAGGING    = Adjusted_RS \u2264 50 AND Momentum \u2264 0\nIMPROVING  = Adjusted_RS \u2264 50 AND Momentum > 0', explanation: 'Each instrument is plotted on a 2D plane: X = Adjusted RS Score (0\u2013100, centered at 50), Y = RS Momentum (\u221250 to +50, centered at 0). Four quadrants define the rotation cycle.', example: 'Apple: Adjusted_RS = 86.08 (> 50), Momentum = +5.65 (> 0) \u2192 LEADING quadrant.' },
-  { stage: 8, title: 'Liquidity Tier Assignment', formula: 'avg_daily_value = SMA(Close \u00D7 Volume, 20)\nTier 1: \u2265 $5M daily  |  Tier 2: $500K\u2013$5M  |  Tier 3: < $500K', explanation: 'Tier 1 = full confidence in all signals including volume. Tier 2 = volume as supporting evidence only. Tier 3 = volume signals unreliable, RS score capped at 70 regardless of raw score. Non-USD instruments are converted to USD equivalent.', example: 'Stock with avg daily value = $320K \u2192 Tier 3 \u2192 even if raw Adjusted_RS = 86, it gets capped to 70.' },
-  { stage: 9, title: 'Regime Filter (Global Risk Overlay)', formula: 'RISK_ON  = ACWI_Close > SMA(ACWI_Close, 200)\nRISK_OFF = ACWI_Close < SMA(ACWI_Close, 200)', explanation: 'When ACWI is below its 200-day MA, the global environment is hostile. All opportunity signals get a warning flag. Recommendations shift from "buy leaders" to "identify survivors" and favor defensive sectors (Utilities, Staples, Healthcare).', example: 'ACWI = $104.20, 200-day MA = $106.50 \u2192 ACWI < MA \u2192 RISK_OFF. All signals flagged with caution.' },
-  { stage: 10, title: 'Extension Warning', formula: 'extension_warning = (RS_Pct_3M > 95) AND (RS_Pct_6M > 95) AND (RS_Pct_12M > 90)', explanation: 'When an asset sits in the top 5% across all timeframes, it is "extended." This is NOT a sell signal \u2014 it is a risk management nudge. Extended assets can keep running, but the odds of mean reversion increase. Position sizing should reflect this.', example: 'Stock with 3M=97, 6M=98, 12M=93 \u2192 all thresholds met \u2192 extension_warning = true. Badge shown in UI.' },
+const ACTION_MATRIX = [
+  { action: 'BUY', priceTrend: 'OUTPERFORMING', momentum: 'ACCELERATING', obv: 'ACCUMULATION', meaning: 'All 3 indicators aligned bullish. Strongest conviction.', actionColor: 'text-emerald-700', rowBg: 'bg-emerald-50/30' },
+  { action: 'HOLD (Divergence)', priceTrend: 'OUTPERFORMING', momentum: 'ACCELERATING', obv: 'DISTRIBUTION', meaning: 'Price strong but smart money distributing. Caution.', actionColor: 'text-yellow-700', rowBg: '' },
+  { action: 'HOLD (Fading)', priceTrend: 'OUTPERFORMING', momentum: 'DECELERATING', obv: 'ACCUMULATION', meaning: 'Still outperforming but momentum fading. Watch closely.', actionColor: 'text-yellow-700', rowBg: '' },
+  { action: 'REDUCE', priceTrend: 'OUTPERFORMING', momentum: 'DECELERATING', obv: 'DISTRIBUTION', meaning: 'Outperforming but fading with distribution. Trim positions.', actionColor: 'text-orange-700', rowBg: 'bg-orange-50/30' },
+  { action: 'SELL', priceTrend: 'UNDERPERFORMING', momentum: 'DECELERATING', obv: 'DISTRIBUTION', meaning: 'All 3 indicators aligned bearish. Exit.', actionColor: 'text-red-700', rowBg: 'bg-red-50/30' },
+  { action: 'WATCH', priceTrend: 'UNDERPERFORMING', momentum: 'DECELERATING', obv: 'ACCUMULATION', meaning: 'Weak but accumulation starting. Early watchlist.', actionColor: 'text-blue-700', rowBg: '' },
+  { action: 'ACCUMULATE', priceTrend: 'UNDERPERFORMING', momentum: 'ACCELERATING', obv: 'ACCUMULATION', meaning: 'Momentum turning with accumulation. Build position.', actionColor: 'text-teal-700', rowBg: 'bg-teal-50/30' },
+  { action: 'AVOID', priceTrend: 'UNDERPERFORMING', momentum: 'ACCELERATING', obv: 'DISTRIBUTION', meaning: 'Momentum turn but on distribution. False signal risk.', actionColor: 'text-slate-600', rowBg: '' },
 ]
 
 const SIGNALS = [
-  { name: 'Quadrant Entry: Leading', description: 'Instrument just crossed into the Leading quadrant (high RS + rising momentum).', conviction: 'High' },
-  { name: 'Quadrant Entry: Improving', description: 'Entered Improving quadrant (low RS but momentum turning positive) \u2014 early-stage signal.', conviction: 'Medium' },
-  { name: 'Volume Breakout', description: 'RS turning positive + volume > 1.5x average. Institutional participation confirmed.', conviction: 'High' },
-  { name: 'Multi-Level Alignment', description: 'Country + Sector + Stock all in Leading quadrant simultaneously. Highest conviction.', conviction: 'Very High' },
-  { name: 'Extension Alert', description: 'RS in top 5% across all timeframes. Not a sell signal \u2014 a risk management nudge.', conviction: 'Caution' },
+  { name: 'Action: BUY', description: 'Instrument has all 3 indicators aligned bullish (outperforming + accelerating + accumulation).', conviction: 'High' },
+  { name: 'Action: ACCUMULATE', description: 'Momentum turning positive with accumulation detected. Early entry signal.', conviction: 'Medium' },
+  { name: 'Volume Breakout', description: 'RS turning positive + volume surge. Institutional participation confirmed.', conviction: 'High' },
+  { name: 'Multi-Level Alignment', description: 'Country + Sector + Stock all showing BUY action simultaneously. Highest conviction.', conviction: 'Very High' },
+  { name: 'Extension Alert', description: 'RS in top 5% across all timeframes. Not a sell signal -- a risk management nudge.', conviction: 'Caution' },
   { name: 'Regime Change', description: 'ACWI crossed above/below its 200-day MA. Global risk regime shifted.', conviction: 'Critical' },
 ]
 

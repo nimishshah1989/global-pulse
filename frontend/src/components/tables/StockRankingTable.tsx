@@ -8,9 +8,7 @@ import {
   type SortingState,
 } from '@tanstack/react-table'
 import type { RankingItem } from '@/types/rs'
-import QuadrantBadge from '@/components/common/QuadrantBadge'
-import LiquidityBadge from '@/components/common/LiquidityBadge'
-import ExtensionBadge from '@/components/common/ExtensionBadge'
+import { QuadrantBadge } from '@/components/common/QuadrantBadge'
 
 interface StockRankingTableProps {
   data: RankingItem[]
@@ -20,18 +18,13 @@ interface StockRankingTableProps {
 
 const columnHelper = createColumnHelper<RankingItem>()
 
-function formatPct(value: number): string {
-  const prefix = value > 0 ? '+' : ''
-  return `${prefix}${value.toFixed(1)}`
-}
-
 export default function StockRankingTable({
   data,
   onAddToBasket,
   onRowClick,
 }: StockRankingTableProps): JSX.Element {
   const [sorting, setSorting] = useState<SortingState>([
-    { id: 'adjusted_rs_score', desc: true },
+    { id: 'rs_score', desc: true },
   ])
 
   const columns = useMemo(
@@ -58,7 +51,7 @@ export default function StockRankingTable({
         ),
         sortingFn: 'alphanumeric',
       }),
-      columnHelper.accessor('adjusted_rs_score', {
+      columnHelper.accessor('rs_score', {
         header: 'RS Score',
         cell: (info) => (
           <span className="font-mono font-semibold text-slate-900">
@@ -67,60 +60,50 @@ export default function StockRankingTable({
         ),
         sortingFn: 'basic',
       }),
-      columnHelper.accessor('quadrant', {
-        header: 'Quadrant',
-        cell: (info) => <QuadrantBadge quadrant={info.getValue()} />,
+      columnHelper.accessor('action', {
+        header: 'Action',
+        cell: (info) => <QuadrantBadge action={info.getValue()} />,
         sortingFn: 'alphanumeric',
       }),
-      columnHelper.accessor('rs_momentum', {
+      columnHelper.accessor('rs_momentum_pct', {
         header: 'Momentum',
         cell: (info) => {
           const val = info.getValue()
+          if (val === null) return <span className="text-slate-400">-</span>
           const color = val > 0 ? 'text-emerald-600' : val < 0 ? 'text-red-600' : 'text-slate-500'
-          return <span className={`font-mono font-medium ${color}`}>{formatPct(val)}</span>
+          const prefix = val > 0 ? '+' : ''
+          return <span className={`font-mono font-medium ${color}`}>{prefix}{val.toFixed(1)}%</span>
         },
         sortingFn: 'basic',
       }),
-      columnHelper.accessor('volume_ratio', {
-        header: 'Vol Ratio',
+      columnHelper.accessor('volume_character', {
+        header: 'Volume',
         cell: (info) => {
           const val = info.getValue()
-          const color = val >= 1.0 ? 'text-emerald-600' : 'text-red-600'
-          return <span className={`font-mono font-medium ${color}`}>{val.toFixed(2)}</span>
+          if (!val) return <span className="text-slate-400">-</span>
+          const color =
+            val === 'ACCUMULATION' ? 'text-emerald-600' :
+            val === 'DISTRIBUTION' ? 'text-red-600' :
+            'text-slate-500'
+          return <span className={`text-xs font-medium ${color}`}>{val}</span>
         },
-        sortingFn: 'basic',
+        sortingFn: 'alphanumeric',
       }),
-      columnHelper.accessor('liquidity_tier', {
-        header: 'Liquidity',
-        cell: (info) => <LiquidityBadge tier={info.getValue() as 1 | 2 | 3} />,
-        sortingFn: 'basic',
-      }),
-      columnHelper.accessor('rs_pct_1m', {
-        header: '1M',
-        cell: (info) => <span className="font-mono text-slate-700">{info.getValue().toFixed(0)}</span>,
-        sortingFn: 'basic',
-      }),
-      columnHelper.accessor('rs_pct_3m', {
-        header: '3M',
-        cell: (info) => <span className="font-mono text-slate-700">{info.getValue().toFixed(0)}</span>,
-        sortingFn: 'basic',
-      }),
-      columnHelper.accessor('rs_pct_6m', {
-        header: '6M',
-        cell: (info) => <span className="font-mono text-slate-700">{info.getValue().toFixed(0)}</span>,
-        sortingFn: 'basic',
-      }),
-      columnHelper.accessor('rs_pct_12m', {
-        header: '12M',
-        cell: (info) => <span className="font-mono text-slate-700">{info.getValue().toFixed(0)}</span>,
-        sortingFn: 'basic',
+      columnHelper.accessor('price_trend', {
+        header: 'Trend',
+        cell: (info) => {
+          const val = info.getValue()
+          if (!val) return <span className="text-slate-400">-</span>
+          const color = val === 'OUTPERFORMING' ? 'text-emerald-600' : 'text-red-600'
+          return <span className={`text-xs font-medium ${color}`}>{val}</span>
+        },
+        sortingFn: 'alphanumeric',
       }),
       columnHelper.display({
         id: 'actions',
         header: '',
         cell: (info) => (
           <div className="flex items-center gap-2">
-            {info.row.original.extension_warning && <ExtensionBadge />}
             {onAddToBasket && (
               <button
                 onClick={(e) => {
