@@ -124,8 +124,8 @@ async def main() -> None:
 
     # Regime
     regime = "RISK_ON"
-    if "ACWI_US" in price_data:
-        acwi_df = price_data["ACWI_US"].select(["date", "close"])
+    if "ACWI" in price_data:
+        acwi_df = price_data["ACWI"].select(["date", "close"])
         regime = calculate_regime(acwi_df)
     logger.info("Regime: %s", regime)
 
@@ -303,7 +303,7 @@ async def main() -> None:
         for sc in all_scores:
             await session.execute(
                 text("""
-                    INSERT OR REPLACE INTO rs_scores
+                    INSERT INTO rs_scores
                     (instrument_id, date, rs_line, rs_ma_150, rs_trend,
                      rs_pct_1m, rs_pct_3m, rs_pct_6m, rs_pct_12m,
                      rs_composite, rs_momentum, volume_ratio, vol_multiplier,
@@ -314,6 +314,11 @@ async def main() -> None:
                             :rs_composite, :rs_momentum, :volume_ratio, :vol_multiplier,
                             :adjusted_rs_score, :quadrant, :liquidity_tier,
                             :extension_warning, :regime)
+                    ON CONFLICT (instrument_id, date) DO UPDATE SET
+                        rs_line = EXCLUDED.rs_line, rs_ma_150 = EXCLUDED.rs_ma_150,
+                        rs_trend = EXCLUDED.rs_trend, rs_composite = EXCLUDED.rs_composite,
+                        adjusted_rs_score = EXCLUDED.adjusted_rs_score,
+                        quadrant = EXCLUDED.quadrant, regime = EXCLUDED.regime
                 """),
                 {k: sc[k] for k in [
                     "instrument_id", "date", "rs_line", "rs_ma_150", "rs_trend",

@@ -17,6 +17,7 @@ from models.baskets import (
     BasketResponse,
 )
 from models.common import ApiResponse, Meta
+from db.session import get_session_factory
 from repositories.basket_repo import BasketRepository
 from services.basket_service import BasketService
 
@@ -26,7 +27,8 @@ router = APIRouter(prefix="/api/baskets", tags=["baskets"])
 
 def _get_service() -> BasketService:
     """Build the basket service with its dependencies."""
-    repo = BasketRepository()
+    session_factory = get_session_factory()
+    repo = BasketRepository(session_factory)
     return BasketService(repo)
 
 

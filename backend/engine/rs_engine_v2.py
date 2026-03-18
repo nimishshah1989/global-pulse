@@ -268,32 +268,17 @@ def determine_action(
 def calculate_regime(acwi_prices: pl.DataFrame) -> str:
     """Determine RISK_ON / RISK_OFF from ACWI vs 200-day MA.
 
+    Delegates to the canonical implementation in engine.regime_filter.
+
     Args:
         acwi_prices: DataFrame with [date, close].
 
     Returns:
         'RISK_ON' or 'RISK_OFF'.
     """
-    df = acwi_prices.sort("date")
+    from engine.regime_filter import calculate_regime as _canonical_regime
 
-    if df.height < REGIME_MA_PERIOD:
-        return "RISK_ON"
-
-    df = df.with_columns(
-        pl.col("close")
-        .rolling_mean(window_size=REGIME_MA_PERIOD, min_periods=REGIME_MA_PERIOD)
-        .alias("sma_200")
-    )
-
-    latest = df.filter(pl.col("sma_200").is_not_null()).tail(1)
-
-    if latest.height == 0:
-        return "RISK_ON"
-
-    current_price = latest["close"][0]
-    sma_value = latest["sma_200"][0]
-
-    return "RISK_ON" if current_price >= sma_value else "RISK_OFF"
+    return _canonical_regime(acwi_prices, ma_period=REGIME_MA_PERIOD)
 
 
 def compute_instrument_scores(

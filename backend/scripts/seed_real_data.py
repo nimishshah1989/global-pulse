@@ -228,7 +228,7 @@ async def main() -> None:
 
     # Regime
     regime = "RISK_ON"
-    acwi_id = "ACWI_US"
+    acwi_id = "ACWI"
     if acwi_id in price_data:
         acwi_df = price_data[acwi_id].select(["date", "close"]).cast({"close": pl.Float64})
         regime = calculate_regime(acwi_df)

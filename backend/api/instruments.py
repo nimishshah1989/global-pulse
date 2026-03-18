@@ -178,7 +178,7 @@ async def _try_db_rs_scores(
                 price_trend=row.rs_trend,
                 rs_momentum_pct=float(row.rs_momentum) if row.rs_momentum is not None else None,
                 momentum_trend="ACCELERATING" if (row.rs_momentum or 0) > 0 else "DECELERATING",
-                volume_character="ACCUMULATION" if (row.volume_ratio or 0) > 0.5 else "DISTRIBUTION",
+                volume_character="ACCUMULATION" if (row.volume_ratio or 0) > 1.0 else "DISTRIBUTION",
                 action=row.quadrant or "WATCH",
                 rs_score=float(row.adjusted_rs_score) if row.adjusted_rs_score is not None else 50.0,
                 regime=row.regime or "RISK_ON",

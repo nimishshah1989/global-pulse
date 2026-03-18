@@ -124,7 +124,7 @@ def _build_mock_opportunities() -> list[dict[str, Any]]:
             },
         ),
         _make_mock_opportunity(
-            "ACWI_US", "MSCI ACWI", "regime_change", 95.00,
+            "ACWI", "MSCI ACWI", "regime_change", 95.00,
             "Global regime changed to RISK_OFF — ACWI crossed below 200-day MA",
             {"previous_regime": "RISK_ON", "current_regime": "RISK_OFF"},
             days_ago=5,

@@ -165,7 +165,7 @@ async def compute_and_seed_rs_scores(
     # Find the ACWI benchmark for regime calculation
     acwi_id = None
     for inst in instruments_data:
-        if inst["id"] == "ACWI_US":
+        if inst["id"] == "ACWI":
             acwi_id = inst["id"]
             break
 

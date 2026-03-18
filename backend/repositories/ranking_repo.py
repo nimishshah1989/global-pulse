@@ -61,7 +61,7 @@ def _rs_score_to_v2_dict(score: RSScore, inst: Instrument) -> dict[str, Any]:
 
     # Volume character from volume_ratio field (1.0=ACCUMULATION, 0.0=DISTRIBUTION)
     vol_ratio = float(score.volume_ratio) if score.volume_ratio is not None else 0.5
-    if vol_ratio > 0.5:
+    if vol_ratio > 1.0:
         volume_character = "ACCUMULATION"
     else:
         volume_character = "DISTRIBUTION"

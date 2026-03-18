@@ -81,6 +81,10 @@ def _build_peer_groups(instruments: list[dict]) -> dict[str, list[str]]:
             groups.setdefault("country_indices", []).append(iid)
         elif inst["hierarchy_level"] == 2:
             groups.setdefault(f"sector_{inst.get('country') or 'global'}", []).append(iid)
+        elif inst["hierarchy_level"] == 3:
+            sector = inst.get("sector") or "unknown"
+            country = inst.get("country") or "unknown"
+            groups.setdefault(f"stock_{country}_{sector}", []).append(iid)
     return groups
 
 
@@ -90,6 +94,10 @@ def _peer_key(inst: dict) -> str:
         return "country_indices"
     if inst["hierarchy_level"] == 2:
         return f"sector_{inst.get('country') or 'global'}"
+    if inst["hierarchy_level"] == 3:
+        sector = inst.get("sector") or "unknown"
+        country = inst.get("country") or "unknown"
+        return f"stock_{country}_{sector}"
     return f"_solo_{inst['id']}"
 
 

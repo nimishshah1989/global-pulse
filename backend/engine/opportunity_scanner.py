@@ -362,7 +362,7 @@ class OpportunityScanner:
 
         if current_regime == "RISK_OFF":
             return [{
-                "instrument_id": "ACWI_US",
+                "instrument_id": "ACWI",
                 "signal_type": "regime_change",
                 "conviction_score": Decimal("95.00"),
                 "description": (
@@ -376,7 +376,7 @@ class OpportunityScanner:
             }]
         else:
             return [{
-                "instrument_id": "ACWI_US",
+                "instrument_id": "ACWI",
                 "signal_type": "regime_change",
                 "conviction_score": Decimal("90.00"),
                 "description": (

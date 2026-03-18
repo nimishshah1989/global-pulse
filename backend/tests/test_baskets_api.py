@@ -26,7 +26,7 @@ async def test_create_basket_201(async_client: AsyncClient) -> None:
     payload = {
         "name": "Test Basket",
         "description": "A test basket",
-        "benchmark_id": "ACWI_US",
+        "benchmark_id": "ACWI",
         "weighting_method": "equal",
     }
     response = await async_client.post("/api/baskets/", json=payload)
