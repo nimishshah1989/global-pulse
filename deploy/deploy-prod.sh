@@ -198,6 +198,29 @@ db.close()
         echo "[DEPLOY] Prices imported" || echo "[DEPLOY] Prices import skipped (may already exist)"
 fi
 
+# Also export rs_scores if they exist
+if [ -f backend/momentum_compass.db ]; then
+    python3 -c "
+import sqlite3, csv
+db = sqlite3.connect('backend/momentum_compass.db')
+count = db.execute('SELECT COUNT(*) FROM rs_scores').fetchone()[0]
+if count > 0:
+    with open('/tmp/rs_scores.csv', 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['instrument_id','date','rs_line','rs_ma_150','rs_trend','rs_pct_1m','rs_pct_3m','rs_pct_6m','rs_pct_12m','rs_composite','rs_momentum','volume_ratio','vol_multiplier','adjusted_rs_score','quadrant','liquidity_tier','extension_warning','regime'])
+        for row in db.execute('SELECT instrument_id,date,rs_line,rs_ma_150,rs_trend,rs_pct_1m,rs_pct_3m,rs_pct_6m,rs_pct_12m,rs_composite,rs_momentum,volume_ratio,vol_multiplier,adjusted_rs_score,quadrant,liquidity_tier,extension_warning,regime FROM rs_scores'):
+            writer.writerow(row)
+    print(f'Exported {count} RS scores')
+else:
+    print('No RS scores to export')
+db.close()
+" 2>/dev/null || true
+
+    docker cp /tmp/rs_scores.csv compass-db:/tmp/ 2>/dev/null || true
+    docker exec compass-db psql -U compass -d momentum_compass -c "\COPY rs_scores FROM '/tmp/rs_scores.csv' WITH CSV HEADER" 2>/dev/null && \
+        echo "[DEPLOY] RS scores imported" || echo "[DEPLOY] RS scores import skipped"
+fi
+
 # Start all services
 docker compose up -d
 
