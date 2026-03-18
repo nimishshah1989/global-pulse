@@ -70,13 +70,26 @@ def compute_excess_return(
     asset_prices: pl.DataFrame,
     bench_prices: pl.DataFrame,
     days: int,
+    end_offset: int = 0,
 ) -> Decimal | None:
-    """Compute excess return for one timeframe."""
+    """Compute excess return for one timeframe.
+
+    Args:
+        asset_prices: DataFrame with [date, close].
+        bench_prices: DataFrame with [date, close].
+        days: Lookback window in trading days.
+        end_offset: Number of rows from the end to use as the "end" point.
+            0 = latest row, 20 = 20 trading days before latest.
+    """
     # Align dates
     merged = asset_prices.join(bench_prices, on="date", suffix="_bench")
-    if merged.height < days:
+    needed = days + end_offset
+    if merged.height < needed:
         return None
-    recent = merged.tail(days)
+    if end_offset > 0:
+        recent = merged.slice(merged.height - needed, days)
+    else:
+        recent = merged.tail(days)
     if recent.height < days:
         return None
     a_start = recent["close"][0]
@@ -150,6 +163,9 @@ async def main() -> None:
         "12M": TRADING_DAYS_12M,
     }
 
+    # Momentum lookback: compute composite 20 trading days ago to diff
+    MOMENTUM_LOOKBACK = 20
+
     group_count = 0
     for (level, country), group_instruments in peer_groups.items():
         group_count += 1
@@ -159,9 +175,9 @@ async def main() -> None:
                 group_count, len(peer_groups), level, country, len(group_instruments),
             )
 
-        # Step 1: Pre-compute ALL excess returns for this peer group
-        # Key optimization: compute once, rank later
-        group_excess: dict[str, dict[str, Decimal]] = {}  # iid -> {tf -> excess}
+        # Step 1: Pre-compute excess returns for TODAY and 20 DAYS AGO
+        group_excess_now: dict[str, dict[str, Decimal]] = {}
+        group_excess_prev: dict[str, dict[str, Decimal]] = {}
 
         for inst in group_instruments:
             iid = inst["id"]
@@ -172,23 +188,36 @@ async def main() -> None:
                 bench_id = iid
             bench_df = price_data[bench_id].select(["date", "close"])
 
-            excess: dict[str, Decimal] = {}
+            excess_now: dict[str, Decimal] = {}
+            excess_prev: dict[str, Decimal] = {}
             for tf, days in timeframes.items():
                 er = compute_excess_return(asset_df, bench_df, days)
                 if er is not None:
-                    excess[tf] = er
-            group_excess[iid] = excess
+                    excess_now[tf] = er
+                # Also compute at 20-day offset for momentum
+                er_prev = compute_excess_return(
+                    asset_df, bench_df, days, end_offset=MOMENTUM_LOOKBACK,
+                )
+                if er_prev is not None:
+                    excess_prev[tf] = er_prev
+            group_excess_now[iid] = excess_now
+            group_excess_prev[iid] = excess_prev
 
-        # Step 2: Build population lists per timeframe
-        tf_populations: dict[str, list[Decimal]] = {tf: [] for tf in timeframes}
-        for iid, excess in group_excess.items():
+        # Step 2: Build population lists per timeframe (current AND previous)
+        tf_pop_now: dict[str, list[Decimal]] = {tf: [] for tf in timeframes}
+        tf_pop_prev: dict[str, list[Decimal]] = {tf: [] for tf in timeframes}
+        for iid, excess in group_excess_now.items():
             for tf, val in excess.items():
-                tf_populations[tf].append(val)
+                tf_pop_now[tf].append(val)
+        for iid, excess in group_excess_prev.items():
+            for tf, val in excess.items():
+                tf_pop_prev[tf].append(val)
 
         # Step 3: Compute percentile ranks + composite for each instrument
         for inst in group_instruments:
             iid = inst["id"]
-            excess = group_excess.get(iid, {})
+            excess_now = group_excess_now.get(iid, {})
+            excess_prev = group_excess_prev.get(iid, {})
             asset_df = price_data[iid]
 
             bench_id = inst.get("benchmark_id")
@@ -212,18 +241,18 @@ async def main() -> None:
                 latest_rs_ma = last_row["rs_ma_150"][0]
                 latest_trend = last_row["rs_trend"][0]
 
-            # Percentile ranks
-            pcts = {}
+            # Percentile ranks — NOW
+            pcts_now: dict[str, Decimal] = {}
             for tf in timeframes:
-                if tf in excess:
-                    pcts[tf] = percentile_rank(excess[tf], tf_populations[tf])
+                if tf in excess_now:
+                    pcts_now[tf] = percentile_rank(excess_now[tf], tf_pop_now[tf])
                 else:
-                    pcts[tf] = Decimal("50")
+                    pcts_now[tf] = Decimal("50")
 
-            pct_1m = pcts.get("1M", Decimal("50"))
-            pct_3m = pcts.get("3M", Decimal("50"))
-            pct_6m = pcts.get("6M", Decimal("50"))
-            pct_12m = pcts.get("12M", Decimal("50"))
+            pct_1m = pcts_now.get("1M", Decimal("50"))
+            pct_3m = pcts_now.get("3M", Decimal("50"))
+            pct_6m = pcts_now.get("6M", Decimal("50"))
+            pct_12m = pcts_now.get("12M", Decimal("50"))
 
             composite = (
                 pct_1m * WEIGHT_1M +
@@ -231,6 +260,27 @@ async def main() -> None:
                 pct_6m * WEIGHT_6M +
                 pct_12m * WEIGHT_12M
             ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+            # Percentile ranks — 20 DAYS AGO (for momentum)
+            pcts_prev: dict[str, Decimal] = {}
+            for tf in timeframes:
+                if tf in excess_prev:
+                    pcts_prev[tf] = percentile_rank(excess_prev[tf], tf_pop_prev[tf])
+                else:
+                    pcts_prev[tf] = Decimal("50")
+
+            composite_prev = (
+                pcts_prev.get("1M", Decimal("50")) * WEIGHT_1M +
+                pcts_prev.get("3M", Decimal("50")) * WEIGHT_3M +
+                pcts_prev.get("6M", Decimal("50")) * WEIGHT_6M +
+                pcts_prev.get("12M", Decimal("50")) * WEIGHT_12M
+            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+            # Stage 5: RS Momentum = composite_now - composite_20d_ago
+            rs_momentum = (composite - composite_prev).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP,
+            )
+            rs_momentum = max(Decimal("-50"), min(Decimal("50"), rs_momentum))
 
             # Volume
             if "volume" in asset_df.columns:
@@ -255,17 +305,11 @@ async def main() -> None:
 
             adjusted_rs = volume_analyzer.calculate_adjusted_rs_score(composite, vol_multiplier, liq_tier)
 
-            # Momentum
-            rs_momentum = Decimal("0")
-            if "1M" in excess:
-                rs_momentum = (excess["1M"] * Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                rs_momentum = max(Decimal("-50"), min(Decimal("50"), rs_momentum))
-
             quadrant = classify_quadrant(adjusted_rs, rs_momentum)
             extension = liquidity_scorer.check_extension_warning(pct_3m, pct_6m, pct_12m)
 
             dates = asset_df["date"].to_list()
-            latest_date = dates[-1] if dates else date(2026, 3, 18)
+            latest_date = dates[-1] if dates else date.today()
 
             all_scores.append({
                 "instrument_id": iid,
