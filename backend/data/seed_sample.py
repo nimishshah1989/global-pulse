@@ -23,7 +23,18 @@ _PRICE_RANGES: dict[str, tuple[float, float]] = {
     "sector_index": (5000.0, 40000.0),
     "country_etf": (20.0, 100.0),
     "global_sector_etf": (30.0, 200.0),
+    "regional_etf": (30.0, 150.0),
+    "bond_etf": (50.0, 130.0),
+    "commodity_etf": (10.0, 200.0),
     "benchmark": (50.0, 200.0),
+    "etf": (20.0, 300.0),
+    "etf_unclassified": (20.0, 200.0),
+    "stock": (5.0, 500.0),
+    "bond": (80.0, 120.0),
+    "commodity": (10.0, 2000.0),
+    "currency_pair": (0.5, 2.0),
+    "crypto": (100.0, 50000.0),
+    "macro_indicator": (0.1, 15.0),
 }
 
 # Volume ranges by liquidity tier
