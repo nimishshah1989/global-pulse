@@ -5,6 +5,7 @@ percentile ranks to each instrument. O(n) per group instead of O(n²).
 
 Usage: python -m scripts.compute_rs_batch
 """
+from __future__ import annotations
 
 import asyncio
 import json

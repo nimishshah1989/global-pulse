@@ -3,6 +3,7 @@
 Reads opportunity signals from the opportunities table. Falls back to
 deterministic mock data if the DB has no data.
 """
+from __future__ import annotations
 
 import datetime
 import json

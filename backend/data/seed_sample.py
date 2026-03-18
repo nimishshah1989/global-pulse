@@ -4,6 +4,7 @@ Creates synthetic price and volume data following random walk patterns
 with slight upward drift. Price ranges and volume levels are calibrated
 per asset type to look realistic.
 """
+from __future__ import annotations
 
 import logging
 import random

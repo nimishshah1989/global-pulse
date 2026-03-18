@@ -15,6 +15,7 @@ Action Matrix (8 outcomes):
   UNDER + ACC + ACCUM→ ACCUMULATE
   UNDER + ACC + DIST → AVOID
 """
+from __future__ import annotations
 
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any

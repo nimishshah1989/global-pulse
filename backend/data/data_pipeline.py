@@ -9,6 +9,7 @@ Two modes of operation:
 The bulk mode is primary for initial setup and weekly full refreshes.
 The daily mode is for incremental updates between bulk runs.
 """
+from __future__ import annotations
 
 import asyncio
 import io

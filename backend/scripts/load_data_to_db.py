@@ -5,6 +5,7 @@ OHLCV data from CSV files in data/fetched/ into the prices table.
 
 Usage: cd backend && python -m scripts.load_data_to_db
 """
+from __future__ import annotations
 
 import asyncio
 import csv

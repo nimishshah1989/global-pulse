@@ -1,5 +1,6 @@
 """Basket service — business logic for basket CRUD and performance."""
 
+from __future__ import annotations
 import logging
 import uuid
 

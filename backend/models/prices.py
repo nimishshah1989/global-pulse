@@ -1,5 +1,6 @@
 """Pydantic v2 models for price data API responses."""
 
+from __future__ import annotations
 import datetime
 
 

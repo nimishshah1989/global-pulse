@@ -3,6 +3,7 @@
 Queries the instruments table first. Falls back to instrument_map.json
 if the DB is empty or unavailable (for tests and pre-seed operation).
 """
+from __future__ import annotations
 
 import json
 import logging

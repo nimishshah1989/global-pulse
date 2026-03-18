@@ -3,6 +3,7 @@
 Uses yfinance's `category` field to map ETFs to country/sector/type.
 Processes in batches with rate limiting.
 """
+from __future__ import annotations
 
 import json
 import logging

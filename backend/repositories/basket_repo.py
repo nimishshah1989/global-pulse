@@ -4,6 +4,7 @@ Stores baskets, positions, and NAV history in the database using the
 ORM models defined in db/models.py. Falls back to a sample basket seed
 on first access if the database is empty.
 """
+from __future__ import annotations
 
 import datetime
 import logging

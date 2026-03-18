@@ -1,5 +1,6 @@
 """Tests for the BasketEngine."""
 
+from __future__ import annotations
 import datetime
 from decimal import Decimal
 

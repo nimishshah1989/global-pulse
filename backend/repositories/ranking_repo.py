@@ -2,6 +2,7 @@
 
 Queries rs_scores table and maps to v2 format (action matrix instead of quadrants).
 """
+from __future__ import annotations
 
 import datetime
 import logging

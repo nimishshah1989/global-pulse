@@ -1,5 +1,6 @@
 """Ranking service v2 — business logic for RS score rankings."""
 
+from __future__ import annotations
 import logging
 from datetime import date
 

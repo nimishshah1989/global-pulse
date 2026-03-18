@@ -4,6 +4,7 @@ Provides filtered access to auto-generated trading signals and
 multi-level alignment opportunities. DB-backed with mock fallback.
 """
 
+from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 

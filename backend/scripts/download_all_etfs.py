@@ -13,6 +13,7 @@ Modes:
     --update-only  Only update existing instruments with latest data
     --days N       For updates, fetch last N days (default: 30)
 """
+from __future__ import annotations
 
 import argparse
 import asyncio

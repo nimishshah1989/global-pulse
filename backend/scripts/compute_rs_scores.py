@@ -3,6 +3,7 @@
 Reads price data from SQLite, runs the RS engine (Stages 1-10), and
 persists results. Runnable standalone: cd backend && python -m scripts.compute_rs_scores
 """
+from __future__ import annotations
 
 import asyncio
 import json

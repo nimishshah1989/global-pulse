@@ -2,6 +2,7 @@
 
 RS v2 uses 3 indicators (Price Trend, Momentum, OBV) and an 8-action matrix.
 """
+from __future__ import annotations
 
 import datetime
 

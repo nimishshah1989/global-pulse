@@ -4,6 +4,7 @@ Computes daily NAV normalized to 100 at inception, performance statistics
 (cumulative return, CAGR, max drawdown, Sharpe, outperformance rate),
 and per-position contribution analysis. All financial values use Decimal.
 """
+from __future__ import annotations
 
 import math
 from datetime import date

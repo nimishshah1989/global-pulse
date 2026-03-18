@@ -15,6 +15,7 @@ Classification priority:
 2. ETF family pattern match (iShares MSCI country pattern, SPDR sector, etc.)
 3. Name-based heuristic (keyword matching on ETF name)
 """
+from __future__ import annotations
 
 import logging
 import re

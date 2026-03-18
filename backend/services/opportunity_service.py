@@ -1,5 +1,6 @@
 """Opportunity service — business logic for opportunity signal retrieval."""
 
+from __future__ import annotations
 import logging
 from models.opportunities import OpportunityResponse
 from repositories.opportunity_repo import OpportunityRepository

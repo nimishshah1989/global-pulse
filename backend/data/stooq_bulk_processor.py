@@ -19,6 +19,7 @@ Usage:
     python -m data.stooq_bulk_processor --regions all --output instrument_map.json
     python -m data.stooq_bulk_processor --bulk-dir /data/stooq_bulk --discover
 """
+from __future__ import annotations
 
 import asyncio
 import io

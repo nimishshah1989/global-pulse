@@ -3,6 +3,7 @@
 Queries real rs_scores for trailing tail data. Falls back to deterministic
 mock data if the DB has no data.
 """
+from __future__ import annotations
 
 import hashlib
 import logging

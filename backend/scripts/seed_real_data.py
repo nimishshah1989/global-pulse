@@ -5,6 +5,7 @@ Loads OHLCV from data/fetched/ CSVs, computes RS scores, generates signals.
 
 Usage: python -m scripts.seed_real_data
 """
+from __future__ import annotations
 
 import asyncio
 import json

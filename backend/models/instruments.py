@@ -1,5 +1,6 @@
 """Pydantic v2 models for instrument API requests and responses."""
 
+from __future__ import annotations
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict

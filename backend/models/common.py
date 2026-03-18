@@ -2,6 +2,7 @@
 
 Every API response is wrapped in ApiResponse with data + meta fields.
 """
+from __future__ import annotations
 
 from datetime import datetime
 from typing import Generic, TypeVar

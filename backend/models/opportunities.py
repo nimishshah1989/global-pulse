@@ -1,4 +1,5 @@
 """Pydantic v2 models for opportunity signal API responses."""
+from __future__ import annotations
 
 import datetime
 import enum

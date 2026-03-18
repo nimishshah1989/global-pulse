@@ -30,6 +30,7 @@ Stooq browse page IDs:
 - 614: HK Stocks (paginated)
 - 615: HK ETFs (paginated ~195)
 """
+from __future__ import annotations
 
 import asyncio
 import json

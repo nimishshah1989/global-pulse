@@ -3,6 +3,7 @@
 Primary data source for US, UK, Japan, Hong Kong stocks/ETFs and global indices.
 Downloads OHLCV data from stooq.com via individual CSV endpoints or bulk ZIP files.
 """
+from __future__ import annotations
 
 import asyncio
 import io

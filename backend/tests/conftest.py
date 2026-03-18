@@ -1,5 +1,6 @@
 """Pytest fixtures for Momentum Compass backend tests."""
 
+from __future__ import annotations
 import datetime
 import uuid
 from collections.abc import AsyncGenerator

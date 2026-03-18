@@ -20,6 +20,7 @@ router = APIRouter(prefix="/api", tags=["system"])
 
 async def _try_db_regime(session: AsyncSession) -> dict[str, Any] | None:
     """Try to read the latest regime from rs_scores for ACWI.
+from __future__ import annotations
 
     Returns None if no data or on DB error.
     """

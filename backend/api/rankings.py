@@ -2,6 +2,7 @@
 
 Uses the simplified 3-indicator RS engine with action matrix.
 """
+from __future__ import annotations
 
 import logging
 from datetime import date, datetime, timezone

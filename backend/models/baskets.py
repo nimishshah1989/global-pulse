@@ -1,5 +1,6 @@
 """Pydantic v2 models for basket API requests and responses."""
 
+from __future__ import annotations
 import datetime
 import uuid
 
