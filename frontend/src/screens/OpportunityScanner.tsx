@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
-import type { SignalType } from '@/types/opportunities'
+import { useState, useMemo, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+import type { SignalType, Opportunity } from '@/types/opportunities'
 import SignalTypeBadge from '@/components/common/SignalTypeBadge'
 import AlignmentCard from '@/components/common/AlignmentCard'
 import LoadingSkeleton from '@/components/common/LoadingSkeleton'
@@ -28,6 +29,7 @@ const LEVEL_OPTIONS = [
 ]
 
 export default function OpportunityScanner(): JSX.Element {
+  const navigate = useNavigate()
   const [signalTypeFilter, setSignalTypeFilter] = useState<SignalType | ''>('')
   const [convictionMin, setConvictionMin] = useState(0)
   const [levelFilter, setLevelFilter] = useState('')
@@ -56,6 +58,17 @@ export default function OpportunityScanner(): JSX.Element {
       return true
     })
   }, [opportunities, signalTypeFilter, convictionMin])
+
+  const handleSignalClick = useCallback((opp: Opportunity): void => {
+    // Navigate based on signal metadata or instrument
+    const meta = opp.metadata
+    if (meta && typeof meta.country === 'string' && typeof meta.sector === 'string') {
+      const sectorSlug = (meta.sector as string).toLowerCase().replace(/[\s.]+/g, '-')
+      navigate(`/compass/country/${meta.country}/sector/${sectorSlug}`)
+    } else if (meta && typeof meta.country === 'string') {
+      navigate(`/compass/country/${meta.country}`)
+    }
+  }, [navigate])
 
   const showAlignments =
     signalTypeFilter === '' || signalTypeFilter === 'multi_level_alignment'
@@ -144,7 +157,7 @@ export default function OpportunityScanner(): JSX.Element {
                 {alignments.filter(
                   (a) => a.conviction_score >= convictionMin,
                 ).map((alignment) => (
-                  <AlignmentCard key={alignment.id} opportunity={alignment} />
+                  <AlignmentCard key={alignment.id} opportunity={alignment} onClick={() => handleSignalClick(alignment)} />
                 ))}
               </div>
             )
@@ -183,6 +196,7 @@ export default function OpportunityScanner(): JSX.Element {
                 {nonAlignmentSignals.map((opp) => (
                   <tr
                     key={opp.id}
+                    onClick={() => handleSignalClick(opp)}
                     className="cursor-pointer transition-colors hover:bg-slate-50"
                   >
                     <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600">

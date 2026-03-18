@@ -18,6 +18,10 @@ export interface BasketPosition {
   status: string
 }
 
+export interface BasketWithPositions extends Basket {
+  positions?: BasketPosition[]
+}
+
 export interface BasketNAV {
   date: string
   nav: number

@@ -52,5 +52,6 @@ export interface RRGDataPoint {
   rs_score: number
   rs_momentum: number
   quadrant: Quadrant
+  volume_ratio?: number
   trail: RRGTrailPoint[]
 }

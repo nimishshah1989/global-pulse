@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import type { RankingItem } from '@/types/rs'
 import { COUNTRY_FLAGS, COUNTRY_NAMES } from '@/data/mockCountryData'
 
@@ -6,6 +7,7 @@ interface TopBottomStripProps {
 }
 
 export default function TopBottomStrip({ data }: TopBottomStripProps): JSX.Element {
+  const navigate = useNavigate()
   const sorted = [...data].sort((a, b) => b.adjusted_rs_score - a.adjusted_rs_score)
   const top5 = sorted.slice(0, 5)
   const bottom5 = sorted.slice(-5).reverse()
@@ -20,7 +22,11 @@ export default function TopBottomStrip({ data }: TopBottomStripProps): JSX.Eleme
           {top5.map((item) => {
             const code = item.country ?? ''
             return (
-              <div key={item.instrument_id} className="flex items-center gap-1.5 whitespace-nowrap">
+              <div
+                key={item.instrument_id}
+                onClick={() => code && navigate(`/compass/country/${code}`)}
+                className="flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded px-1.5 py-0.5 transition-colors hover:bg-emerald-100"
+              >
                 <span className="text-sm">{COUNTRY_FLAGS[code] ?? ''}</span>
                 <span className="text-xs font-medium text-emerald-800">
                   {COUNTRY_NAMES[code] ?? code}
@@ -42,7 +48,11 @@ export default function TopBottomStrip({ data }: TopBottomStripProps): JSX.Eleme
           {bottom5.map((item) => {
             const code = item.country ?? ''
             return (
-              <div key={item.instrument_id} className="flex items-center gap-1.5 whitespace-nowrap">
+              <div
+                key={item.instrument_id}
+                onClick={() => code && navigate(`/compass/country/${code}`)}
+                className="flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded px-1.5 py-0.5 transition-colors hover:bg-red-100"
+              >
                 <span className="text-sm">{COUNTRY_FLAGS[code] ?? ''}</span>
                 <span className="text-xs font-medium text-red-800">
                   {COUNTRY_NAMES[code] ?? code}

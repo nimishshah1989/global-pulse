@@ -1,8 +1,9 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import RRGScatter from '@/components/charts/RRGScatter'
 import RSRankingTable from '@/components/tables/RSRankingTable'
 import RSLineChart from '@/components/charts/RSLineChart'
+import Breadcrumb from '@/components/layout/Breadcrumb'
 import RegimeBanner from '@/components/common/RegimeBanner'
 import LoadingSkeleton from '@/components/common/LoadingSkeleton'
 import ErrorAlert from '@/components/common/ErrorAlert'
@@ -65,19 +66,22 @@ export default function CountryDeepDive(): JSX.Element {
 
   // Auto-select first sector if none selected
   const displaySectorName = selectedSectorName || sectors[0]?.name || 'Select a sector'
-  if (!selectedSectorId && sectors.length > 0) {
-    // Set on next render to avoid setting state during render
-    setTimeout(() => {
+  useEffect(() => {
+    if (!selectedSectorId && sectors.length > 0) {
       setSelectedSectorId(sectors[0].instrument_id)
       setSelectedSectorName(sectors[0].name)
-    }, 0)
-  }
+    }
+  }, [sectors, selectedSectorId])
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900">
-        {countryName} — Sector Rotation
-      </h1>
+      <div>
+        <Breadcrumb />
+        <h1 className="mt-2 text-2xl font-bold text-slate-900">
+          📊 {countryName} — Sector Rotation
+        </h1>
+        <p className="text-sm text-slate-500">Which sectors are leading within this market?</p>
+      </div>
 
       {regimeData && (
         <RegimeBanner regime={regimeData.regime} />

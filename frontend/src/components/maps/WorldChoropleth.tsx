@@ -3,6 +3,7 @@ import {
   ComposableMap,
   Geographies,
   Geography,
+  Marker,
   ZoomableGroup,
 } from 'react-simple-maps'
 import { useNavigate } from 'react-router-dom'
@@ -10,6 +11,38 @@ import { scaleSequential, interpolateRdYlGn } from 'd3'
 import type { RankingItem } from '@/types/rs'
 
 const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
+
+/** Approximate centroids for arrow placement (lon, lat) */
+const COUNTRY_CENTROIDS: Record<string, [number, number]> = {
+  US: [-98, 38],
+  UK: [-2, 54],
+  DE: [10, 51],
+  FR: [2, 47],
+  JP: [138, 36],
+  HK: [114, 22],
+  CN: [104, 35],
+  KR: [128, 36],
+  IN: [78, 22],
+  TW: [121, 24],
+  AU: [134, -25],
+  BR: [-51, -14],
+  CA: [-106, 56],
+}
+
+/** Returns arrow symbol, color class, and label based on RS momentum */
+function getMomentumArrow(rsMomentum: number): {
+  symbol: string
+  colorClass: string
+  fillColor: string
+} {
+  if (rsMomentum > 5) {
+    return { symbol: '\u25B2', colorClass: 'text-emerald-600', fillColor: '#059669' }
+  }
+  if (rsMomentum < -5) {
+    return { symbol: '\u25BC', colorClass: 'text-red-600', fillColor: '#dc2626' }
+  }
+  return { symbol: '\u25BA', colorClass: 'text-amber-500', fillColor: '#f59e0b' }
+}
 
 /**
  * Maps ISO 3166-1 numeric codes to our 2-letter country codes.
@@ -42,6 +75,11 @@ interface TooltipData {
   name: string
   score: number
   quadrant: string
+  rsMomentum: number
+  rsTrend: string
+  rsPct1m: number
+  rsPct3m: number
+  liquidityTier: number
   x: number
   y: number
 }
@@ -53,6 +91,7 @@ interface WorldChoroplethProps {
 function WorldChoroplethInner({ data }: WorldChoroplethProps): JSX.Element {
   const navigate = useNavigate()
   const [tooltip, setTooltip] = useState<TooltipData | null>(null)
+  const [pulsingCountry, setPulsingCountry] = useState<string | null>(null)
 
   const scoreMap = new Map<string, RankingItem>()
   data.forEach((item) => {
@@ -63,7 +102,11 @@ function WorldChoroplethInner({ data }: WorldChoroplethProps): JSX.Element {
 
   const handleClick = useCallback(
     (countryCode: string) => {
-      navigate(`/compass/country/${countryCode}`)
+      setPulsingCountry(countryCode)
+      setTimeout(() => {
+        setPulsingCountry(null)
+        navigate(`/compass/country/${countryCode}`)
+      }, 300)
     },
     [navigate],
   )
@@ -86,15 +129,21 @@ function WorldChoroplethInner({ data }: WorldChoroplethProps): JSX.Element {
                   ? (colorScale(item.adjusted_rs_score) ?? '#e2e8f0')
                   : '#e2e8f0'
 
+                const isPulsing = countryCode === pulsingCountry
+
                 return (
                   <Geography
                     key={geo.rsmKey}
                     geography={geo}
                     fill={fillColor}
-                    stroke="#94a3b8"
-                    strokeWidth={0.5}
+                    stroke={isPulsing ? '#0d9488' : '#94a3b8'}
+                    strokeWidth={isPulsing ? 2.5 : 0.5}
+                    className={isPulsing ? 'animate-pulse' : ''}
                     style={{
-                      default: { outline: 'none' },
+                      default: {
+                        outline: 'none',
+                        transition: 'stroke-width 0.2s ease, stroke 0.2s ease',
+                      },
                       hover: {
                         outline: 'none',
                         fill: item ? fillColor : '#cbd5e1' as string,
@@ -114,6 +163,11 @@ function WorldChoroplethInner({ data }: WorldChoroplethProps): JSX.Element {
                           name: item.name,
                           score: item.adjusted_rs_score,
                           quadrant: item.quadrant,
+                          rsMomentum: item.rs_momentum,
+                          rsTrend: item.rs_trend,
+                          rsPct1m: item.rs_pct_1m,
+                          rsPct3m: item.rs_pct_3m,
+                          liquidityTier: item.liquidity_tier,
                           x: evt.clientX - (rect?.left ?? 0),
                           y: evt.clientY - (rect?.top ?? 0),
                         })
@@ -125,6 +179,27 @@ function WorldChoroplethInner({ data }: WorldChoroplethProps): JSX.Element {
               })
             }
           </Geographies>
+          {data.map((item) => {
+            const code = item.country ? normalizeCountryCode(item.country) : null
+            if (!code) return null
+            const centroid = COUNTRY_CENTROIDS[code]
+            if (!centroid) return null
+            const arrow = getMomentumArrow(item.rs_momentum)
+            return (
+              <Marker key={`arrow-${code}`} coordinates={centroid}>
+                <text
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fontSize={10}
+                  fontWeight="bold"
+                  fill={arrow.fillColor}
+                  style={{ pointerEvents: 'none', userSelect: 'none' }}
+                >
+                  {arrow.symbol}
+                </text>
+              </Marker>
+            )
+          })}
         </ZoomableGroup>
       </ComposableMap>
 
@@ -142,6 +217,52 @@ function WorldChoroplethInner({ data }: WorldChoroplethProps): JSX.Element {
             <span className="font-mono font-medium">{tooltip.score.toFixed(1)}</span>
           </p>
           <p className="text-xs text-slate-600">Quadrant: {tooltip.quadrant}</p>
+          <p className="text-xs text-slate-600">
+            RS Momentum:{' '}
+            <span
+              className={`font-mono font-medium ${
+                tooltip.rsMomentum > 0
+                  ? 'text-emerald-600'
+                  : tooltip.rsMomentum < 0
+                    ? 'text-red-600'
+                    : 'text-slate-600'
+              }`}
+            >
+              {tooltip.rsMomentum > 0 ? '+' : ''}
+              {tooltip.rsMomentum.toFixed(1)}
+            </span>
+          </p>
+          <p className="text-xs text-slate-600">
+            Trend:{' '}
+            <span
+              className={`font-medium ${
+                tooltip.rsTrend === 'OUTPERFORMING'
+                  ? 'text-emerald-600'
+                  : 'text-red-600'
+              }`}
+            >
+              {tooltip.rsTrend}
+            </span>
+          </p>
+          <div className="mt-1 flex gap-3 text-xs text-slate-600">
+            <span>
+              1M:{' '}
+              <span className="font-mono font-medium">
+                {tooltip.rsPct1m > 0 ? '+' : ''}
+                {tooltip.rsPct1m.toFixed(1)}
+              </span>
+            </span>
+            <span>
+              3M:{' '}
+              <span className="font-mono font-medium">
+                {tooltip.rsPct3m > 0 ? '+' : ''}
+                {tooltip.rsPct3m.toFixed(1)}
+              </span>
+            </span>
+          </div>
+          <p className="text-xs text-slate-500">
+            Liquidity Tier: {tooltip.liquidityTier}
+          </p>
         </div>
       )}
 

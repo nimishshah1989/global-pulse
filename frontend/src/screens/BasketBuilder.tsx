@@ -15,7 +15,7 @@ import {
   MOCK_BASKET_PERFORMANCE,
   generateMockNAVHistory,
 } from '@/data/mockBasketData'
-import type { Basket } from '@/types/baskets'
+import type { Basket, BasketWithPositions } from '@/types/baskets'
 
 function BasketListView(): JSX.Element {
   const navigate = useNavigate()
@@ -106,7 +106,7 @@ function BasketListView(): JSX.Element {
 
 function BasketDetailView({ basketId }: { basketId: string }): JSX.Element {
   const navigate = useNavigate()
-  const { data: basketData, isLoading, error, refetch } = useBasket(basketId)
+  const { data: basketData, isLoading, error, refetch } = useBasket(basketId) as { data: BasketWithPositions | undefined; isLoading: boolean; error: Error | null; refetch: () => void }
   const addPositionMutation = useAddPosition()
   const removePositionMutation = useRemovePosition()
   const [showAddPosition, setShowAddPosition] = useState(false)
@@ -118,6 +118,43 @@ function BasketDetailView({ basketId }: { basketId: string }): JSX.Element {
 
   const basket = basketData ?? MOCK_BASKETS.find((b) => b.id === basketId) ?? MOCK_BASKETS[0]
   const navHistory = useMemo(() => generateMockNAVHistory(), [])
+
+  const positions = useMemo(() => {
+    if (basketData?.positions && basketData.positions.length > 0) {
+      return basketData.positions.map((pos) => ({
+        instrument_id: pos.instrument_id,
+        name: pos.instrument_id.replace(/_/g, ' '),
+        weight: pos.weight,
+        position_return: 0,
+        adjusted_rs_score: 50,
+        rs_momentum: 0,
+        quadrant: 'LEADING' as const,
+      }))
+    }
+    return MOCK_POSITION_DETAILS
+  }, [basketData])
+
+  const performance = useMemo(() => {
+    if (navHistory.length > 1) {
+      const first = navHistory[0]
+      const last = navHistory[navHistory.length - 1]
+      const cumReturn = ((last.nav - first.nav) / first.nav) * 100
+      const maxDd = Math.min(
+        ...navHistory.map((d, i) => {
+          const peak = Math.max(...navHistory.slice(0, i + 1).map((n) => n.nav))
+          return ((d.nav - peak) / peak) * 100
+        }),
+      )
+      return {
+        cumulative_return: Math.round(cumReturn * 100) / 100,
+        cagr: null,
+        max_drawdown: Math.round(maxDd * 100) / 100,
+        sharpe_ratio: MOCK_BASKET_PERFORMANCE.sharpe_ratio,
+        pct_weeks_outperforming: MOCK_BASKET_PERFORMANCE.pct_weeks_outperforming,
+      }
+    }
+    return MOCK_BASKET_PERFORMANCE
+  }, [navHistory])
 
   function handleAddPosition(instrumentId: string, weight: number): void {
     addPositionMutation.mutate(
@@ -165,7 +202,7 @@ function BasketDetailView({ basketId }: { basketId: string }): JSX.Element {
           <BasketNAVChart data={navHistory} />
         </div>
         <div>
-          <PerformanceStats performance={MOCK_BASKET_PERFORMANCE} />
+          <PerformanceStats performance={performance} />
         </div>
       </div>
 
@@ -195,7 +232,7 @@ function BasketDetailView({ basketId }: { basketId: string }): JSX.Element {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {MOCK_POSITION_DETAILS.map((pos) => (
+              {positions.map((pos) => (
                 <tr key={pos.instrument_id} className="hover:bg-slate-50">
                   <td className="px-4 py-3">
                     <div>

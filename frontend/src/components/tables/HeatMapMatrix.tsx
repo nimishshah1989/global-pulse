@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Quadrant } from '@/types/rs'
 
 export interface HeatMapCellData {
@@ -49,6 +50,7 @@ export default function HeatMapMatrix({
   countryScores,
   sectorScores,
 }: HeatMapMatrixProps): JSX.Element {
+  const [hoveredCountry, setHoveredCountry] = useState<string | null>(null)
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white" data-testid="heatmap-matrix">
       <table className="w-full text-xs">
@@ -61,7 +63,7 @@ export default function HeatMapMatrix({
               <th className="px-2 py-2 text-center font-semibold text-slate-500">Global</th>
             )}
             {countries.map((country) => (
-              <th key={country} className="px-2 py-2 text-center font-semibold text-slate-700">
+              <th key={country} className={`px-2 py-2 text-center font-semibold text-slate-700 ${hoveredCountry === country ? 'bg-teal-50' : ''}`}>
                 <div>{countryLabels?.[country] ?? country}</div>
                 {countryScores && (
                   <div className="mt-0.5 font-mono text-[10px] text-slate-400">
@@ -89,7 +91,12 @@ export default function HeatMapMatrix({
                 const cell = matrix[country]?.[sector]
                 if (!cell) {
                   return (
-                    <td key={country} className="px-2 py-2 text-center text-slate-300 group-hover:bg-slate-50">
+                    <td
+                      key={country}
+                      className={`px-2 py-2 text-center text-slate-300 group-hover:bg-slate-50 ${hoveredCountry === country ? 'bg-teal-50' : ''}`}
+                      onMouseEnter={() => setHoveredCountry(country)}
+                      onMouseLeave={() => setHoveredCountry(null)}
+                    >
                       -
                     </td>
                   )
@@ -109,7 +116,9 @@ export default function HeatMapMatrix({
                   <td
                     key={country}
                     onClick={() => onCellClick(country, sector)}
-                    className="cursor-pointer px-1 py-1 text-center group-hover:bg-slate-50"
+                    onMouseEnter={() => setHoveredCountry(country)}
+                    onMouseLeave={() => setHoveredCountry(null)}
+                    className={`cursor-pointer px-1 py-1 text-center group-hover:bg-slate-50 ${hoveredCountry === country ? 'bg-teal-50' : ''}`}
                     data-testid={`cell-${country}-${sector}`}
                   >
                     <span
