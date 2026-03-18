@@ -25,7 +25,7 @@ function BasketListView(): JSX.Element {
   const { data: basketsData, isLoading, error, refetch } = useBaskets()
   const createBasketMutation = useCreateBasket()
 
-  const baskets: Basket[] = Array.isArray(basketsData) ? basketsData : MOCK_BASKETS
+  const baskets: Basket[] = Array.isArray(basketsData) && basketsData.length > 0 ? basketsData : MOCK_BASKETS
 
   function handleCreate(data: {
     name: string
@@ -119,7 +119,7 @@ function BasketDetailView({ basketId }: { basketId: string }): JSX.Element {
   const [showCompare, setShowCompare] = useState(false)
 
   const { data: allBasketsData } = useBaskets()
-  const allBaskets: Basket[] = Array.isArray(allBasketsData) ? allBasketsData : MOCK_BASKETS
+  const allBaskets: Basket[] = Array.isArray(allBasketsData) && allBasketsData.length > 0 ? allBasketsData : MOCK_BASKETS
   const otherBaskets = allBaskets.filter((b: Basket) => b.id !== basketId && b.status === 'active')
 
   const basket = basketData ?? MOCK_BASKETS.find((b) => b.id === basketId) ?? MOCK_BASKETS[0]

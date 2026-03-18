@@ -65,7 +65,7 @@ export default function CountryDeepDive(): JSX.Element {
 
   const countryName = COUNTRY_NAMES[code] ?? code
   const mockSectors = MOCK_SECTOR_DATA[code] ?? MOCK_SECTOR_DATA['US'] ?? []
-  const sectors: RankingItem[] = Array.isArray(sectorData) ? sectorData : mockSectors
+  const sectors: RankingItem[] = Array.isArray(sectorData) && sectorData.length > 0 ? sectorData : mockSectors
   const rrgData = rrgApiData ?? getMockRRGData(code in MOCK_SECTOR_DATA ? code : 'US')
 
   const [selectedSectorId, setSelectedSectorId] = useState<string>('')

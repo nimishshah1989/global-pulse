@@ -55,7 +55,7 @@ export default function StockSelection(): JSX.Element {
   const { data: stockData, isLoading: stocksLoading, error: stocksError, refetch: refetchStocks } = useStockRankings(code, sector)
   const { data: rrgApiData, isLoading: rrgLoading } = useStockRRG(code, sector)
 
-  const stocks: RankingItem[] = Array.isArray(stockData) ? stockData : MOCK_STOCK_DATA
+  const stocks: RankingItem[] = Array.isArray(stockData) && stockData.length > 0 ? stockData : MOCK_STOCK_DATA
   const rrgData = rrgApiData ?? getMockStockRRGData()
 
   const [actionFilter, setActionFilter] = useState<ActionFilterGroup>('ALL')

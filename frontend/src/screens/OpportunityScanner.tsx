@@ -63,8 +63,8 @@ export default function OpportunityScanner(): JSX.Element {
   const { data: opportunitiesData, isLoading: oppsLoading, error: oppsError, refetch: refetchOpps } = useOpportunities(opportunityFilters)
   const { data: alignmentsData, isLoading: alignmentsLoading } = useMultiLevelAlignments()
 
-  const opportunities: Opportunity[] = Array.isArray(opportunitiesData) ? opportunitiesData : MOCK_OPPORTUNITIES
-  const alignments: Opportunity[] = Array.isArray(alignmentsData) ? alignmentsData : MOCK_ALIGNMENTS
+  const opportunities: Opportunity[] = Array.isArray(opportunitiesData) && opportunitiesData.length > 0 ? opportunitiesData : MOCK_OPPORTUNITIES
+  const alignments: Opportunity[] = Array.isArray(alignmentsData) && alignmentsData.length > 0 ? alignmentsData : MOCK_ALIGNMENTS
 
   const nonAlignmentSignals = useMemo(() => {
     return opportunities.filter((opp) => {
