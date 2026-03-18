@@ -30,7 +30,7 @@ from engine.regime_filter import calculate_regime  # noqa: E402
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-MIN_PRICE_ROWS = 200
+MIN_PRICE_ROWS = 100
 ACWI_ID = "ACWI"
 DEFAULT_PCT = Decimal("50")
 EMPTY_PRICES = pl.DataFrame({"date": [], "close": [], "volume": []}).cast(
@@ -142,9 +142,10 @@ async def compute_all(session: AsyncSession) -> int:
     # Pre-compute excess returns for instruments with enough data
     excess: dict[str, dict[str, Decimal]] = {}
     for inst in instruments:
+        iid = inst["id"]
         bid = inst.get("benchmark_id")
-        if bid and bid in prices and prices[inst["id"]].height >= MIN_PRICE_ROWS:
-            excess[inst["id"]] = calc.calculate_excess_returns(prices[inst["id"]], prices[bid])
+        if bid and bid in prices and iid in prices and prices[iid].height >= MIN_PRICE_ROWS:
+            excess[iid] = calc.calculate_excess_returns(prices[iid], prices[bid])
 
     today = date.today()
     records: list[RSScore] = []
