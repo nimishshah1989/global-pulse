@@ -8,34 +8,32 @@ const mockStocks: RankingItem[] = [
     name: 'Apple Inc',
     country: 'US',
     sector: 'technology',
-    adjusted_rs_score: 72.8,
-    rs_momentum: 3.2,
-    quadrant: 'LEADING',
-    rs_pct_1m: 68,
-    rs_pct_3m: 72,
-    rs_pct_6m: 75,
-    rs_pct_12m: 73,
-    volume_ratio: 1.05,
-    rs_trend: 'OUTPERFORMING',
-    liquidity_tier: 1,
-    extension_warning: false,
+    asset_type: 'stock',
+    rs_line: 107.8,
+    rs_ma: 104.9,
+    price_trend: 'OUTPERFORMING',
+    rs_momentum_pct: 3.2,
+    momentum_trend: 'ACCELERATING',
+    volume_character: 'NEUTRAL',
+    action: 'ACCUMULATE',
+    rs_score: 72.8,
+    regime: 'RISK_ON',
   },
   {
     instrument_id: 'NVDA_US',
     name: 'NVIDIA Corp',
     country: 'US',
     sector: 'technology',
-    adjusted_rs_score: 92.4,
-    rs_momentum: 18.3,
-    quadrant: 'LEADING',
-    rs_pct_1m: 96,
-    rs_pct_3m: 97,
-    rs_pct_6m: 95,
-    rs_pct_12m: 91,
-    volume_ratio: 1.45,
-    rs_trend: 'OUTPERFORMING',
-    liquidity_tier: 1,
-    extension_warning: true,
+    asset_type: 'stock',
+    rs_line: 118.5,
+    rs_ma: 110.2,
+    price_trend: 'OUTPERFORMING',
+    rs_momentum_pct: 18.3,
+    momentum_trend: 'ACCELERATING',
+    volume_character: 'ACCUMULATION',
+    action: 'BUY',
+    rs_score: 92.4,
+    regime: 'RISK_ON',
   },
 ]
 
@@ -52,11 +50,6 @@ describe('StockRankingTable', () => {
     render(<StockRankingTable data={mockStocks} onAddToBasket={handler} />)
     const buttons = screen.getAllByTestId('add-to-basket-btn')
     expect(buttons.length).toBe(2)
-  })
-
-  it('shows extension warning badge for flagged stocks', () => {
-    render(<StockRankingTable data={mockStocks} onAddToBasket={vi.fn()} />)
-    expect(screen.getByText('Extended')).toBeInTheDocument()
   })
 
   it('displays RS scores in font-mono', () => {

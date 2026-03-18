@@ -10,34 +10,32 @@ const MOCK_DATA: RankingItem[] = [
     name: 'S&P 500',
     country: 'US',
     sector: null,
-    adjusted_rs_score: 72.5,
-    rs_momentum: 8.3,
-    quadrant: 'LEADING',
-    rs_pct_1m: 68,
-    rs_pct_3m: 75,
-    rs_pct_6m: 80,
-    rs_pct_12m: 65,
-    volume_ratio: 1.15,
-    rs_trend: 'OUTPERFORMING',
-    liquidity_tier: 1,
-    extension_warning: false,
+    asset_type: 'country_index',
+    rs_line: 108.5,
+    rs_ma: 104.2,
+    price_trend: 'OUTPERFORMING',
+    rs_momentum_pct: 8.3,
+    momentum_trend: 'ACCELERATING',
+    volume_character: 'ACCUMULATION',
+    action: 'BUY',
+    rs_score: 72.5,
+    regime: 'RISK_ON',
   },
   {
     instrument_id: 'FTM',
     name: 'FTSE 100',
     country: 'GB',
     sector: null,
-    adjusted_rs_score: 35.2,
-    rs_momentum: -8.4,
-    quadrant: 'LAGGING',
-    rs_pct_1m: 30,
-    rs_pct_3m: 35,
-    rs_pct_6m: 40,
-    rs_pct_12m: 42,
-    volume_ratio: 0.82,
-    rs_trend: 'UNDERPERFORMING',
-    liquidity_tier: 1,
-    extension_warning: false,
+    asset_type: 'country_index',
+    rs_line: 94.2,
+    rs_ma: 98.5,
+    price_trend: 'UNDERPERFORMING',
+    rs_momentum_pct: -8.4,
+    momentum_trend: 'DECELERATING',
+    volume_character: 'DISTRIBUTION',
+    action: 'SELL',
+    rs_score: 35.2,
+    regime: 'RISK_ON',
   },
 ]
 
@@ -56,11 +54,11 @@ describe('RSRankingTable', () => {
     expect(screen.getByText('35.2')).toBeInTheDocument()
   })
 
-  it('shows quadrant badges', () => {
+  it('shows action badges', () => {
     render(<RSRankingTable data={MOCK_DATA} showCountry />)
 
-    expect(screen.getByText('Leading')).toBeInTheDocument()
-    expect(screen.getByText('Lagging')).toBeInTheDocument()
+    expect(screen.getByText(/Buy/)).toBeInTheDocument()
+    expect(screen.getByText(/Sell/)).toBeInTheDocument()
   })
 
   it('sorts by RS Score descending by default', () => {

@@ -12,6 +12,7 @@ vi.mock('react-simple-maps', () => ({
     children({ geographies: [] }),
   Geography: () => <path data-testid="geography" />,
   ZoomableGroup: ({ children }: { children: React.ReactNode }) => <g>{children}</g>,
+  Marker: ({ children }: { children: React.ReactNode }) => <g>{children}</g>,
 }))
 
 import WorldChoropleth from '@/components/maps/WorldChoropleth'
@@ -22,17 +23,16 @@ const MOCK_DATA: RankingItem[] = [
     name: 'S&P 500',
     country: 'US',
     sector: null,
-    adjusted_rs_score: 72.5,
-    rs_momentum: 8.3,
-    quadrant: 'LEADING',
-    rs_pct_1m: 68,
-    rs_pct_3m: 75,
-    rs_pct_6m: 80,
-    rs_pct_12m: 65,
-    volume_ratio: 1.15,
-    rs_trend: 'OUTPERFORMING',
-    liquidity_tier: 1,
-    extension_warning: false,
+    asset_type: 'country_index',
+    rs_line: 108.5,
+    rs_ma: 104.2,
+    price_trend: 'OUTPERFORMING',
+    rs_momentum_pct: 8.3,
+    momentum_trend: 'ACCELERATING',
+    volume_character: 'ACCUMULATION',
+    action: 'BUY',
+    rs_score: 72.5,
+    regime: 'RISK_ON',
   },
 ]
 
