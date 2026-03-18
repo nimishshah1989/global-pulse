@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     # Optional with defaults
     REDIS_URL: str = "redis://localhost:6379"
     STOOQ_BASE_URL: str = "https://stooq.com/q/d/l/"
+    STOOQ_USERNAME: str = ""
+    STOOQ_PASSWORD: str = ""
     DATA_REFRESH_HOUR: int = 2
     APP_ENV: str = "development"
 

@@ -34,6 +34,7 @@ Stooq browse page IDs:
 import asyncio
 import json
 import logging
+import os
 import re
 import sys
 from pathlib import Path
@@ -112,6 +113,33 @@ QUICK_TARGETS: list[tuple[int, str, int]] = [
 ]
 
 
+def _login_sync(username: str, password: str) -> dict[str, str]:
+    """Login to Stooq synchronously and return session cookies.
+
+    Args:
+        username: Stooq username.
+        password: Stooq password.
+
+    Returns:
+        Dictionary of cookies for authenticated requests.
+    """
+    with httpx.Client(
+        follow_redirects=True,
+        timeout=httpx.Timeout(30.0),
+        headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"},
+    ) as client:
+        resp = client.post(
+            "https://stooq.com/logred.htm",
+            data={"login": username, "haslo": password, "save": "on"},
+        )
+        cookies = dict(client.cookies)
+        if cookies:
+            logger.info("Stooq login successful (got %d cookies)", len(cookies))
+        else:
+            logger.warning("Stooq login may have failed (no cookies returned)")
+        return cookies
+
+
 async def scrape_page(
     client: httpx.AsyncClient,
     page_id: int,
@@ -120,7 +148,7 @@ async def scrape_page(
     """Scrape a single Stooq browse page for tickers and names.
 
     Args:
-        client: HTTP client.
+        client: HTTP client (should have auth cookies set).
         page_id: Stooq page ID (the i= parameter).
         page_num: Page number for pagination.
 
@@ -130,6 +158,10 @@ async def scrape_page(
     url = f"https://stooq.com/t/?i={page_id}&v=0&l={page_num}"
     try:
         response = await client.get(url)
+        if response.status_code == 503:
+            # Retry once after a short wait
+            await asyncio.sleep(2)
+            response = await client.get(url)
         response.raise_for_status()
         html = response.text
     except httpx.HTTPError as exc:
@@ -178,6 +210,7 @@ async def scrape_all_pages(
     label: str,
     max_pages: int,
     client: httpx.AsyncClient,
+    delay: float = 1.0,
 ) -> list[dict[str, str]]:
     """Scrape all pages of a paginated Stooq listing.
 
@@ -186,6 +219,7 @@ async def scrape_all_pages(
         label: Human-readable label for logging.
         max_pages: Maximum number of pages to scrape.
         client: HTTP client.
+        delay: Seconds to wait between page requests.
 
     Returns:
         Combined list of {ticker, name} dicts from all pages.
@@ -209,8 +243,8 @@ async def scrape_all_pages(
         if len(results) < 10:
             break
 
-        # Rate limit
-        await asyncio.sleep(0.3)
+        # Rate limit between pages
+        await asyncio.sleep(delay)
 
     logger.info("  %s (i=%d): %d instruments across %d pages",
                 label, page_id, len(all_results), min(page_num, max_pages))
@@ -220,12 +254,16 @@ async def scrape_all_pages(
 async def discover_stooq_universe(
     quick: bool = False,
     output_path: Path | None = None,
+    username: str | None = None,
+    password: str | None = None,
 ) -> list[dict]:
     """Discover the complete Stooq instrument universe by scraping browse pages.
 
     Args:
         quick: If True, only scrape ETFs and indices (skip stocks).
         output_path: Where to write the discovered tickers JSON.
+        username: Stooq login username (enables access to all markets).
+        password: Stooq login password.
 
     Returns:
         List of instrument_map entries for all discovered instruments.
@@ -235,10 +273,16 @@ async def discover_stooq_universe(
     all_discovered: list[dict[str, str]] = []
     seen_tickers: set[str] = set()
 
+    # Authenticate if credentials provided
+    cookies = {}
+    if username and password:
+        cookies = _login_sync(username, password)
+
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(30.0),
-        headers={"User-Agent": "MomentumCompass/1.0"},
+        headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"},
         follow_redirects=True,
+        cookies=cookies,
     ) as client:
         for page_id, label, max_pages in targets:
             results = await scrape_all_pages(page_id, label, max_pages, client)
@@ -311,12 +355,26 @@ if __name__ == "__main__":
         "--merge-yfinance", action="store_true", default=True,
         help="Merge with yfinance gap-fill instruments"
     )
+    parser.add_argument(
+        "--username", type=str, default=None,
+        help="Stooq login username (enables access to all markets)"
+    )
+    parser.add_argument(
+        "--password", type=str, default=None,
+        help="Stooq login password"
+    )
 
     args = parser.parse_args()
+
+    # Also check environment variables
+    username = args.username or os.environ.get("STOOQ_USERNAME")
+    password = args.password or os.environ.get("STOOQ_PASSWORD")
 
     entries = asyncio.run(discover_stooq_universe(
         quick=args.quick,
         output_path=None,  # Don't write yet
+        username=username,
+        password=password,
     ))
 
     if args.merge_yfinance:

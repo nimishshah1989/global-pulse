@@ -742,6 +742,123 @@ class ETFClassifier:
                 confidence="heuristic",
             )
 
+        # Check for leveraged/inverse ETFs
+        leveraged_keywords = [
+            "2x", "3x", "-2x", "-3x", "ultra", "leveraged",
+            "direxion", "proshares", "leverage shares",
+            "t-rex", "microsectors", "bull", "bear",
+        ]
+        is_leveraged = any(kw in name_lower for kw in leveraged_keywords)
+
+        inverse_keywords = [
+            "inverse", "short", "bear", "-1x", "-2x", "-3x",
+        ]
+        is_inverse = any(kw in name_lower for kw in inverse_keywords)
+
+        if is_leveraged or is_inverse:
+            return ETFClassification(
+                country="US",
+                sector="leveraged_inverse",
+                asset_class="equity",
+                asset_type="sector_etf",
+                hierarchy_level=2,
+                benchmark_id="SPX",
+                liquidity_tier=2,
+                confidence="heuristic",
+            )
+
+        # Check for Bitcoin/crypto ETFs
+        crypto_keywords = [
+            "bitcoin", "ethereum", "crypto", "blockchain", "digital asset",
+        ]
+        is_crypto = any(kw in name_lower for kw in crypto_keywords)
+        if is_crypto:
+            return ETFClassification(
+                country=None,
+                sector="crypto",
+                asset_class="crypto",
+                asset_type="commodity_etf",
+                hierarchy_level=2,
+                benchmark_id=None,
+                liquidity_tier=2,
+                confidence="heuristic",
+            )
+
+        # Check for buffer/defined outcome ETFs
+        buffer_keywords = [
+            "buffer", "defined outcome", "defined protection",
+            "innovator", "first trust target",
+        ]
+        is_buffer = any(kw in name_lower for kw in buffer_keywords)
+        if is_buffer:
+            return ETFClassification(
+                country="US",
+                sector="buffer_outcome",
+                asset_class="multi_asset",
+                asset_type="sector_etf",
+                hierarchy_level=2,
+                benchmark_id="SPX",
+                liquidity_tier=3,
+                confidence="heuristic",
+            )
+
+        # Check for dividend/income ETFs
+        dividend_keywords = [
+            "dividend", "income", "yield", "high yield",
+        ]
+        is_dividend = any(kw in name_lower for kw in dividend_keywords)
+        if is_dividend:
+            listing_country = self._country_from_suffix(suffix) or "US"
+            return ETFClassification(
+                country=listing_country,
+                sector="dividend_income",
+                asset_class="equity",
+                asset_type="sector_etf",
+                hierarchy_level=2,
+                benchmark_id=COUNTRY_BENCHMARKS.get(listing_country, "ACWI"),
+                liquidity_tier=2,
+                confidence="heuristic",
+            )
+
+        # Check for broad US equity (value, growth, large cap, small cap, etc.)
+        us_equity_keywords = [
+            "large cap", "large-cap", "small cap", "small-cap",
+            "mid cap", "mid-cap", "value", "growth", "core",
+            "total stock", "total market", "us equity", "u.s. equity",
+            "all cap", "multi cap", "equal weight",
+        ]
+        is_us_equity = any(kw in name_lower for kw in us_equity_keywords)
+        if is_us_equity:
+            return ETFClassification(
+                country="US",
+                sector=None,
+                asset_class="equity",
+                asset_type="sector_etf",
+                hierarchy_level=2,
+                benchmark_id="SPX",
+                liquidity_tier=2,
+                confidence="heuristic",
+            )
+
+        # Check for emerging/international/global equity
+        global_keywords = [
+            "emerging", "international", "global", "world",
+            "developed", "frontier", "all country", "acwi",
+            "eafe", "ex-us", "non-us",
+        ]
+        is_global = any(kw in name_lower for kw in global_keywords)
+        if is_global:
+            return ETFClassification(
+                country=None,
+                sector=None,
+                asset_class="equity",
+                asset_type="regional_etf",
+                hierarchy_level=1,
+                benchmark_id="ACWI",
+                liquidity_tier=2,
+                confidence="heuristic",
+            )
+
         return None
 
     def _detect_country_from_name(self, name_lower: str) -> str | None:
@@ -854,7 +971,25 @@ def build_instrument_entry(
     if source == "stooq" and ticker.endswith(".US"):
         currency = "USD"
 
-    return {
+    # Determine listing country (where the ETF trades)
+    listing_country = None
+    if source == "stooq":
+        if ticker.endswith(".US"):
+            listing_country = "US"
+        elif ticker.endswith(".UK"):
+            listing_country = "UK"
+        elif ticker.endswith(".JP"):
+            listing_country = "JP"
+        elif ticker.endswith(".HK"):
+            listing_country = "HK"
+        elif ticker.endswith(".DE"):
+            listing_country = "DE"
+        elif ticker.endswith(".PL"):
+            listing_country = "PL"
+        elif ticker.endswith(".HU"):
+            listing_country = "HU"
+
+    entry: dict = {
         "id": instrument_id,
         "name": name,
         "ticker_stooq": ticker if source == "stooq" else None,
@@ -868,6 +1003,13 @@ def build_instrument_entry(
         "currency": currency,
         "liquidity_tier": classification.liquidity_tier,
     }
+
+    # Add listing_country when it differs from exposure country
+    # (e.g., EWJ.US lists in US but tracks Japan)
+    if listing_country and listing_country != classification.country:
+        entry["listing_country"] = listing_country
+
+    return entry
 
 
 def _ticker_to_id(ticker: str) -> str:
