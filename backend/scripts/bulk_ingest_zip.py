@@ -284,6 +284,181 @@ def setup_db(db_path):
     return conn
 
 
+# ── ETF Classification (from etf_classifier.py knowledge base) ────────
+# Maps ticker_base (without .US suffix) → {country, sector, asset_type, benchmark_id, tier}
+
+KNOWN_ETFS = {
+    # COUNTRY ETFs
+    "SPY": {"country": "US", "sector": None, "asset_type": "country_etf", "benchmark_id": "SPX", "tier": 1},
+    "QQQ": {"country": "US", "sector": None, "asset_type": "country_etf", "benchmark_id": "NDQ", "tier": 1},
+    "DIA": {"country": "US", "sector": None, "asset_type": "country_etf", "benchmark_id": "SPX", "tier": 1},
+    "IVV": {"country": "US", "sector": None, "asset_type": "country_etf", "benchmark_id": "SPX", "tier": 1},
+    "VOO": {"country": "US", "sector": None, "asset_type": "country_etf", "benchmark_id": "SPX", "tier": 1},
+    "VTI": {"country": "US", "sector": None, "asset_type": "country_etf", "benchmark_id": "SPX", "tier": 1},
+    "IWM": {"country": "US", "sector": "small_cap", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "IWF": {"country": "US", "sector": "growth", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "IWD": {"country": "US", "sector": "value", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "MDY": {"country": "US", "sector": "mid_cap", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "RSP": {"country": "US", "sector": "equal_weight", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "SCHD": {"country": "US", "sector": "dividends", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    # iShares MSCI single-country
+    "EWU": {"country": "UK", "sector": None, "asset_type": "country_etf", "benchmark_id": "FTM", "tier": 1},
+    "EWG": {"country": "DE", "sector": None, "asset_type": "country_etf", "benchmark_id": "DAX", "tier": 1},
+    "EWQ": {"country": "FR", "sector": None, "asset_type": "country_etf", "benchmark_id": "CAC", "tier": 1},
+    "EWJ": {"country": "JP", "sector": None, "asset_type": "country_etf", "benchmark_id": "NKX", "tier": 1},
+    "EWH": {"country": "HK", "sector": None, "asset_type": "country_etf", "benchmark_id": "HSI", "tier": 1},
+    "FXI": {"country": "CN", "sector": None, "asset_type": "country_etf", "benchmark_id": "CSI300", "tier": 1},
+    "MCHI": {"country": "CN", "sector": None, "asset_type": "country_etf", "benchmark_id": "CSI300", "tier": 1},
+    "EWY": {"country": "KR", "sector": None, "asset_type": "country_etf", "benchmark_id": "KS11", "tier": 1},
+    "INDA": {"country": "IN", "sector": None, "asset_type": "country_etf", "benchmark_id": "NSEI", "tier": 1},
+    "EWT": {"country": "TW", "sector": None, "asset_type": "country_etf", "benchmark_id": "TWII", "tier": 1},
+    "EWA": {"country": "AU", "sector": None, "asset_type": "country_etf", "benchmark_id": "AXJO", "tier": 1},
+    "EWZ": {"country": "BR", "sector": None, "asset_type": "country_etf", "benchmark_id": "BVSP", "tier": 1},
+    "EWC": {"country": "CA", "sector": None, "asset_type": "country_etf", "benchmark_id": "GSPTSE", "tier": 1},
+    "EWS": {"country": "SG", "sector": None, "asset_type": "country_etf", "benchmark_id": "ACWI", "tier": 1},
+    "EWW": {"country": "MX", "sector": None, "asset_type": "country_etf", "benchmark_id": "ACWI", "tier": 1},
+    "EWP": {"country": "ES", "sector": None, "asset_type": "country_etf", "benchmark_id": "ACWI", "tier": 1},
+    "EWI": {"country": "IT", "sector": None, "asset_type": "country_etf", "benchmark_id": "ACWI", "tier": 1},
+    "EWN": {"country": "NL", "sector": None, "asset_type": "country_etf", "benchmark_id": "ACWI", "tier": 1},
+    "EWD": {"country": "SE", "sector": None, "asset_type": "country_etf", "benchmark_id": "ACWI", "tier": 1},
+    "EWL": {"country": "CH", "sector": None, "asset_type": "country_etf", "benchmark_id": "ACWI", "tier": 1},
+    "THD": {"country": "TH", "sector": None, "asset_type": "country_etf", "benchmark_id": "ACWI", "tier": 1},
+    "KSA": {"country": "SA", "sector": None, "asset_type": "country_etf", "benchmark_id": "ACWI", "tier": 1},
+    "DXJ": {"country": "JP", "sector": None, "asset_type": "country_etf", "benchmark_id": "NKX", "tier": 1},
+    "EPI": {"country": "IN", "sector": None, "asset_type": "country_etf", "benchmark_id": "NSEI", "tier": 1},
+    "INDY": {"country": "IN", "sector": None, "asset_type": "country_etf", "benchmark_id": "NSEI", "tier": 1},
+    # Regional
+    "ACWI": {"country": None, "sector": None, "asset_type": "benchmark", "benchmark_id": None, "tier": 1},
+    "EEM": {"country": None, "sector": None, "asset_type": "benchmark", "benchmark_id": None, "tier": 1},
+    "VEA": {"country": None, "sector": None, "asset_type": "benchmark", "benchmark_id": None, "tier": 1},
+    "VWO": {"country": None, "sector": None, "asset_type": "regional_etf", "benchmark_id": "ACWI", "tier": 1},
+    "EFA": {"country": None, "sector": None, "asset_type": "regional_etf", "benchmark_id": "ACWI", "tier": 1},
+    "VT": {"country": None, "sector": None, "asset_type": "regional_etf", "benchmark_id": "ACWI", "tier": 1},
+    "VXUS": {"country": None, "sector": None, "asset_type": "regional_etf", "benchmark_id": "ACWI", "tier": 1},
+    "EZU": {"country": None, "sector": None, "asset_type": "regional_etf", "benchmark_id": "ACWI", "tier": 1},
+    "VGK": {"country": None, "sector": None, "asset_type": "regional_etf", "benchmark_id": "ACWI", "tier": 1},
+    # US SECTOR (SPDR)
+    "XLK": {"country": "US", "sector": "technology", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "XLF": {"country": "US", "sector": "financials", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "XLV": {"country": "US", "sector": "healthcare", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "XLY": {"country": "US", "sector": "consumer_discretionary", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "XLP": {"country": "US", "sector": "consumer_staples", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "XLE": {"country": "US", "sector": "energy", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "XLI": {"country": "US", "sector": "industrials", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "XLB": {"country": "US", "sector": "materials", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "XLRE": {"country": "US", "sector": "real_estate", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "XLU": {"country": "US", "sector": "utilities", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "XLC": {"country": "US", "sector": "communication_services", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    # US SECTOR (Vanguard)
+    "VGT": {"country": "US", "sector": "technology", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "VFH": {"country": "US", "sector": "financials", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "VHT": {"country": "US", "sector": "healthcare", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "VDE": {"country": "US", "sector": "energy", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "VIS": {"country": "US", "sector": "industrials", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "VCR": {"country": "US", "sector": "consumer_discretionary", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "VDC": {"country": "US", "sector": "consumer_staples", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "VAW": {"country": "US", "sector": "materials", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "VNQ": {"country": "US", "sector": "real_estate", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "VPU": {"country": "US", "sector": "utilities", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "VOX": {"country": "US", "sector": "communication_services", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    # US SECTOR (iShares)
+    "IYW": {"country": "US", "sector": "technology", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "IYF": {"country": "US", "sector": "financials", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "IYH": {"country": "US", "sector": "healthcare", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "IYE": {"country": "US", "sector": "energy", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "IYJ": {"country": "US", "sector": "industrials", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "IYC": {"country": "US", "sector": "consumer_discretionary", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "IYK": {"country": "US", "sector": "consumer_staples", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "IDU": {"country": "US", "sector": "utilities", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "IYR": {"country": "US", "sector": "real_estate", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    # US SECTOR (Fidelity)
+    "FTEC": {"country": "US", "sector": "technology", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "FENY": {"country": "US", "sector": "energy", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "FHLC": {"country": "US", "sector": "healthcare", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "FDIS": {"country": "US", "sector": "consumer_discretionary", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "FSTA": {"country": "US", "sector": "consumer_staples", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "FIDU": {"country": "US", "sector": "industrials", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "FMAT": {"country": "US", "sector": "materials", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "FUTY": {"country": "US", "sector": "utilities", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "FCOM": {"country": "US", "sector": "communication_services", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "FREL": {"country": "US", "sector": "real_estate", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    # GLOBAL SECTOR (iShares)
+    "IXN": {"country": None, "sector": "technology", "asset_type": "global_sector_etf", "benchmark_id": "ACWI", "tier": 1},
+    "IXG": {"country": None, "sector": "financials", "asset_type": "global_sector_etf", "benchmark_id": "ACWI", "tier": 1},
+    "IXJ": {"country": None, "sector": "healthcare", "asset_type": "global_sector_etf", "benchmark_id": "ACWI", "tier": 1},
+    "IXC": {"country": None, "sector": "energy", "asset_type": "global_sector_etf", "benchmark_id": "ACWI", "tier": 1},
+    "EXI": {"country": None, "sector": "industrials", "asset_type": "global_sector_etf", "benchmark_id": "ACWI", "tier": 1},
+    "RXI": {"country": None, "sector": "consumer_discretionary", "asset_type": "global_sector_etf", "benchmark_id": "ACWI", "tier": 1},
+    "KXI": {"country": None, "sector": "consumer_staples", "asset_type": "global_sector_etf", "benchmark_id": "ACWI", "tier": 1},
+    "JXI": {"country": None, "sector": "utilities", "asset_type": "global_sector_etf", "benchmark_id": "ACWI", "tier": 1},
+    "MXI": {"country": None, "sector": "materials", "asset_type": "global_sector_etf", "benchmark_id": "ACWI", "tier": 1},
+    "IXP": {"country": None, "sector": "communication_services", "asset_type": "global_sector_etf", "benchmark_id": "ACWI", "tier": 1},
+    # THEMATIC
+    "SOXX": {"country": "US", "sector": "semiconductors", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "SMH": {"country": "US", "sector": "semiconductors", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "IBB": {"country": "US", "sector": "biotech", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "XBI": {"country": "US", "sector": "biotech", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "XHB": {"country": "US", "sector": "homebuilders", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "XOP": {"country": "US", "sector": "oil_gas_exploration", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "KRE": {"country": "US", "sector": "regional_banks", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "KBE": {"country": "US", "sector": "banks", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "XRT": {"country": "US", "sector": "retail", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "ITA": {"country": "US", "sector": "aerospace_defense", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "HACK": {"country": "US", "sector": "cybersecurity", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "ARKK": {"country": "US", "sector": "innovation", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "JETS": {"country": "US", "sector": "airlines", "asset_type": "sector_etf", "benchmark_id": "SPX", "tier": 1},
+    "KWEB": {"country": "CN", "sector": "technology", "asset_type": "sector_etf", "benchmark_id": "CSI300", "tier": 1},
+    "ICLN": {"country": None, "sector": "clean_energy", "asset_type": "global_sector_etf", "benchmark_id": "ACWI", "tier": 1},
+    "TAN": {"country": None, "sector": "solar", "asset_type": "global_sector_etf", "benchmark_id": "ACWI", "tier": 1},
+    "LIT": {"country": None, "sector": "lithium_battery", "asset_type": "global_sector_etf", "benchmark_id": "ACWI", "tier": 1},
+    # COMMODITY
+    "GLD": {"country": None, "sector": "gold", "asset_type": "commodity_etf", "benchmark_id": None, "tier": 1},
+    "IAU": {"country": None, "sector": "gold", "asset_type": "commodity_etf", "benchmark_id": None, "tier": 1},
+    "SLV": {"country": None, "sector": "silver", "asset_type": "commodity_etf", "benchmark_id": None, "tier": 1},
+    "GDX": {"country": None, "sector": "gold_miners", "asset_type": "commodity_etf", "benchmark_id": None, "tier": 1},
+    "USO": {"country": None, "sector": "crude_oil", "asset_type": "commodity_etf", "benchmark_id": None, "tier": 1},
+    "DBC": {"country": None, "sector": "commodities_broad", "asset_type": "commodity_etf", "benchmark_id": None, "tier": 1},
+    "URA": {"country": None, "sector": "uranium", "asset_type": "commodity_etf", "benchmark_id": None, "tier": 2},
+    "BITO": {"country": None, "sector": "crypto", "asset_type": "commodity_etf", "benchmark_id": None, "tier": 1},
+    "IBIT": {"country": None, "sector": "crypto", "asset_type": "commodity_etf", "benchmark_id": None, "tier": 1},
+    # BOND
+    "AGG": {"country": "US", "sector": "aggregate_bond", "asset_type": "bond_etf", "benchmark_id": None, "tier": 1},
+    "BND": {"country": "US", "sector": "aggregate_bond", "asset_type": "bond_etf", "benchmark_id": None, "tier": 1},
+    "TLT": {"country": "US", "sector": "treasury_long", "asset_type": "bond_etf", "benchmark_id": None, "tier": 1},
+    "IEF": {"country": "US", "sector": "treasury_mid", "asset_type": "bond_etf", "benchmark_id": None, "tier": 1},
+    "SHY": {"country": "US", "sector": "treasury_short", "asset_type": "bond_etf", "benchmark_id": None, "tier": 1},
+    "LQD": {"country": "US", "sector": "investment_grade", "asset_type": "bond_etf", "benchmark_id": None, "tier": 1},
+    "HYG": {"country": "US", "sector": "high_yield", "asset_type": "bond_etf", "benchmark_id": None, "tier": 1},
+    "EMB": {"country": None, "sector": "em_bond", "asset_type": "bond_etf", "benchmark_id": None, "tier": 1},
+}
+
+
+def _enrich_etfs(conn):
+    """Update ETF instruments with sector/country/asset_type from KNOWN_ETFS."""
+    enriched = 0
+    for ticker_base, info in KNOWN_ETFS.items():
+        # Instrument IDs are TICKER_SUFFIX format (e.g. XLK_US)
+        for suffix in ("US", "UK", "JP", "HK", "DE"):
+            inst_id = "{}_{}".format(ticker_base, suffix)
+            result = conn.execute(
+                "SELECT id FROM instruments WHERE id = ?", (inst_id,)
+            ).fetchone()
+            if result:
+                conn.execute(
+                    "UPDATE instruments SET "
+                    "sector = ?, asset_type = ?, benchmark_id = ?, "
+                    "liquidity_tier = ?, country = COALESCE(?, country) "
+                    "WHERE id = ?",
+                    (info.get("sector"), info["asset_type"],
+                     info.get("benchmark_id"), info.get("tier", 2),
+                     info.get("country"), inst_id),
+                )
+                enriched += 1
+                break
+    conn.commit()
+    logger.info("Enriched %d ETFs with sector/country/asset_type", enriched)
+
+
 # ── Main pipeline ──────────────────────────────────────────────────────
 
 def bulk_ingest_zip(zip_path, region, include_stocks=True, db_path=None):
@@ -429,6 +604,9 @@ def bulk_ingest_zip(zip_path, region, include_stocks=True, db_path=None):
 
     conn.commit()
     zf.close()
+
+    # Phase 4: Enrich ETFs with sector/country/asset_type from KNOWN_ETFS
+    _enrich_etfs(conn)
 
     # Final stats
     row_count = conn.execute("SELECT COUNT(*) FROM prices").fetchone()[0]
