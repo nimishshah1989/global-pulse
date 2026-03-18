@@ -28,10 +28,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     when PostgreSQL is unavailable (JSON-backed repos still work).
     """
     try:
+        from db.models import Base
         from db.session import get_engine
         from sqlalchemy import text
 
         eng = get_engine()
+        # Create tables if they don't exist (safe for production — no-op if already created)
+        async with eng.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
         async with eng.connect() as conn:
             await conn.execute(text("SELECT 1"))
         logger.info("Database connection validated successfully.")
@@ -59,15 +63,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware -- allow all origins in development
-if settings.is_development:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=(
+        ["*"] if settings.is_development
+        else ["https://global-pulse.jslwealth.in", "http://global-pulse.jslwealth.in"]
+    ),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Register routers
 app.include_router(system_router)
