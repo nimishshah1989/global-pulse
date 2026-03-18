@@ -202,7 +202,13 @@ def _determine_asset_type(folder_type: str) -> tuple[str, int]:
 
 
 def _parse_csv_bytes(csv_bytes: bytes, instrument_id: str) -> list[dict]:
-    """Parse a Stooq CSV file into price row dicts."""
+    """Parse a Stooq CSV/TXT file into price row dicts.
+
+    Stooq bulk files use headers like:
+        <TICKER>,<PER>,<DATE>,<TIME>,<OPEN>,<HIGH>,<LOW>,<CLOSE>,<VOL>,<OPENINT>
+    or standard:
+        Date,Open,High,Low,Close,Volume
+    """
     rows: list[dict] = []
     try:
         text = csv_bytes.decode("utf-8", errors="replace")
@@ -214,12 +220,23 @@ def _parse_csv_bytes(csv_bytes: bytes, instrument_id: str) -> list[dict]:
     if header is None:
         return rows
 
-    # Normalize headers
-    normalized = [col.strip().lower() for col in header]
+    # Normalize headers: strip whitespace, angle brackets, lowercase
+    normalized = [col.strip().strip("<>").lower() for col in header]
     col_map: dict[str, int] = {}
-    for target in ("date", "open", "high", "low", "close", "volume"):
+
+    # Map Stooq bracket-style AND standard headers
+    aliases = {
+        "date": ("date",),
+        "open": ("open",),
+        "high": ("high",),
+        "low": ("low",),
+        "close": ("close",),
+        "volume": ("volume", "vol"),
+    }
+
+    for target, names in aliases.items():
         for idx, col in enumerate(normalized):
-            if col == target:
+            if col in names:
                 col_map[target] = idx
                 break
 
@@ -309,9 +326,27 @@ async def bulk_ingest_zip(
         logger.error("Invalid ZIP file: %s", zip_path)
         return {"error": "Invalid ZIP file"}
 
-    all_csv_files = [f for f in zf.namelist() if f.lower().endswith(".csv")]
+    all_csv_files = [f for f in zf.namelist()
+                     if f.lower().endswith(".csv") or f.lower().endswith(".txt")]
     stats["csv_files_total"] = len(all_csv_files)
-    logger.info("Found %d CSV files in ZIP", len(all_csv_files))
+    logger.info("Found %d data files in ZIP", len(all_csv_files))
+
+    # Show sample paths for debugging folder structure
+    if all_csv_files:
+        sample = all_csv_files[:10]
+        logger.info("Sample file paths in ZIP:")
+        for p in sample:
+            logger.info("  %s", p)
+
+        # Show unique top-level directories
+        dirs = set()
+        for f in all_csv_files:
+            parts = f.lower().split("/")
+            if len(parts) >= 4:
+                dirs.add("/".join(parts[:4]) + "/")
+        logger.info("Detected directories:")
+        for d in sorted(dirs):
+            logger.info("  %s", d)
 
     # Phase 1: Discover instruments from folder structure
     instruments: list[dict] = []
@@ -324,6 +359,7 @@ async def bulk_ingest_zip(
         if folder_type == "stock" and not include_stocks:
             continue
 
+        # Strip .txt or .csv extension to get ticker
         ticker_base = Path(csv_path).stem.upper()
         instrument_id = _build_instrument_id(ticker_base, suffix)
         stooq_ticker = _build_stooq_ticker(ticker_base, suffix, folder_type)

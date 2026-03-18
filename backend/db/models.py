@@ -3,10 +3,10 @@
 All financial fields use Numeric (never Float) to avoid precision issues.
 Compatible with both SQLite (development) and PostgreSQL (production).
 """
-from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from typing import Optional
 
 from sqlalchemy import (
     Boolean,
@@ -37,20 +37,20 @@ class Instrument(Base):
 
     id: Mapped[str] = mapped_column(Text, primary_key=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    ticker_stooq: Mapped[str | None] = mapped_column(Text, nullable=True)
-    ticker_yfinance: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ticker_stooq: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ticker_yfinance: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     source: Mapped[str] = mapped_column(Text, nullable=False)
     asset_type: Mapped[str] = mapped_column(Text, nullable=False)
-    country: Mapped[str | None] = mapped_column(Text, nullable=True)
-    sector: Mapped[str | None] = mapped_column(Text, nullable=True)
+    country: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    sector: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     hierarchy_level: Mapped[int] = mapped_column(Integer, nullable=False)
-    benchmark_id: Mapped[str | None] = mapped_column(
+    benchmark_id: Mapped[Optional[str]] = mapped_column(
         Text, ForeignKey("instruments.id"), nullable=True
     )
     currency: Mapped[str] = mapped_column(Text, nullable=False, default="USD")
-    liquidity_tier: Mapped[int | None] = mapped_column(Integer, nullable=True, default=2)
+    liquidity_tier: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=2)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    metadata_: Mapped[dict | None] = mapped_column(
+    metadata_: Mapped[Optional[dict]] = mapped_column(
         "metadata", JSON, nullable=True
     )
 
@@ -76,11 +76,11 @@ class Price(Base):
         Text, ForeignKey("instruments.id"), primary_key=True
     )
     date: Mapped[date] = mapped_column(Date, primary_key=True)
-    open: Mapped[float | None] = mapped_column(Numeric(18, 6), nullable=True)
-    high: Mapped[float | None] = mapped_column(Numeric(18, 6), nullable=True)
-    low: Mapped[float | None] = mapped_column(Numeric(18, 6), nullable=True)
+    open: Mapped[Optional[float]] = mapped_column(Numeric(18, 6), nullable=True)
+    high: Mapped[Optional[float]] = mapped_column(Numeric(18, 6), nullable=True)
+    low: Mapped[Optional[float]] = mapped_column(Numeric(18, 6), nullable=True)
     close: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False)
-    volume: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    volume: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
 
     instrument = relationship("Instrument", back_populates="prices")
 
@@ -96,28 +96,28 @@ class RSScore(Base):
     date: Mapped[date] = mapped_column(Date, primary_key=True)
 
     # Raw RS data
-    rs_line: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
-    rs_ma_150: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
-    rs_trend: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rs_line: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
+    rs_ma_150: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
+    rs_trend: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Percentile ranks
-    rs_pct_1m: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
-    rs_pct_3m: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
-    rs_pct_6m: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
-    rs_pct_12m: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
+    rs_pct_1m: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
+    rs_pct_3m: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
+    rs_pct_6m: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
+    rs_pct_12m: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
 
     # Composite
-    rs_composite: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
-    rs_momentum: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
+    rs_composite: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
+    rs_momentum: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)
 
     # Volume
-    volume_ratio: Mapped[float | None] = mapped_column(Numeric(6, 3), nullable=True)
-    vol_multiplier: Mapped[float | None] = mapped_column(Numeric(4, 3), nullable=True)
+    volume_ratio: Mapped[Optional[float]] = mapped_column(Numeric(6, 3), nullable=True)
+    vol_multiplier: Mapped[Optional[float]] = mapped_column(Numeric(4, 3), nullable=True)
 
     # Final score
-    adjusted_rs_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
-    quadrant: Mapped[str | None] = mapped_column(Text, nullable=True)
-    liquidity_tier: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    adjusted_rs_score: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
+    quadrant: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    liquidity_tier: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # Flags
     extension_warning: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -138,7 +138,7 @@ class Constituent(Base):
         Text, ForeignKey("instruments.id"), primary_key=True
     )
     as_of_date: Mapped[date] = mapped_column(Date, primary_key=True)
-    weight: Mapped[float | None] = mapped_column(Numeric(8, 6), nullable=True)
+    weight: Mapped[Optional[float]] = mapped_column(Numeric(8, 6), nullable=True)
 
     index_instrument = relationship(
         "Instrument", foreign_keys=[index_id], lazy="selectin"
@@ -157,8 +157,8 @@ class Basket(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    benchmark_id: Mapped[str | None] = mapped_column(
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    benchmark_id: Mapped[Optional[str]] = mapped_column(
         Text, ForeignKey("instruments.id"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -200,7 +200,7 @@ class BasketPosition(Base):
     added_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow
     )
-    removed_at: Mapped[datetime | None] = mapped_column(
+    removed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True
     )
     status: Mapped[str] = mapped_column(Text, default="active")
@@ -219,10 +219,10 @@ class BasketNAV(Base):
     )
     date: Mapped[date] = mapped_column(Date, primary_key=True)
     nav: Mapped[float] = mapped_column(Numeric(14, 6), nullable=False)
-    benchmark_nav: Mapped[float | None] = mapped_column(
+    benchmark_nav: Mapped[Optional[float]] = mapped_column(
         Numeric(14, 6), nullable=True
     )
-    rs_line: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
+    rs_line: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
 
     basket = relationship("Basket", back_populates="nav_history")
 
@@ -240,11 +240,11 @@ class Opportunity(Base):
     )
     date: Mapped[date] = mapped_column(Date, nullable=False)
     signal_type: Mapped[str] = mapped_column(Text, nullable=False)
-    conviction_score: Mapped[float | None] = mapped_column(
+    conviction_score: Mapped[Optional[float]] = mapped_column(
         Numeric(5, 2), nullable=True
     )
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    metadata_: Mapped[dict | None] = mapped_column(
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    metadata_: Mapped[Optional[dict]] = mapped_column(
         "metadata", JSON, nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
