@@ -110,7 +110,7 @@ def calculate_price_trend(
     """
     result = rs_line_df.sort("date").with_columns(
         pl.col("rs_line")
-        .rolling_mean(window_size=ma_period, min_samples=min(ma_period, 20))
+        .rolling_mean(window_size=ma_period, min_periods=min(ma_period, 20))
         .alias("rs_ma")
     )
 
@@ -206,7 +206,7 @@ def calculate_obv(prices_df: pl.DataFrame) -> pl.DataFrame:
     # OBV MA for trend determination
     df = df.with_columns(
         pl.col("obv")
-        .rolling_mean(window_size=OBV_MA_PERIOD, min_samples=5)
+        .rolling_mean(window_size=OBV_MA_PERIOD, min_periods=5)
         .alias("obv_ma")
     )
 
@@ -281,7 +281,7 @@ def calculate_regime(acwi_prices: pl.DataFrame) -> str:
 
     df = df.with_columns(
         pl.col("close")
-        .rolling_mean(window_size=REGIME_MA_PERIOD, min_samples=REGIME_MA_PERIOD)
+        .rolling_mean(window_size=REGIME_MA_PERIOD, min_periods=REGIME_MA_PERIOD)
         .alias("sma_200")
     )
 
