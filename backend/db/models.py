@@ -3,6 +3,7 @@
 All financial fields use Numeric (never Float) to avoid precision issues.
 Compatible with both SQLite (development) and PostgreSQL (production).
 """
+from __future__ import annotations
 
 import uuid
 from datetime import date, datetime

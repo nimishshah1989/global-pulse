@@ -16,6 +16,7 @@ Usage:
     # Multiple ZIPs:
     python -m scripts.bulk_ingest_zip --bulk-dir ../data/stooq_bulk
 """
+from __future__ import annotations
 
 import argparse
 import asyncio

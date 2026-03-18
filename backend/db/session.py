@@ -2,6 +2,7 @@
 
 Supports both SQLite (development) and PostgreSQL (production).
 """
+from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 
