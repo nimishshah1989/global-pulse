@@ -14,6 +14,57 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db.models import Instrument, RSScore
 from repositories.instrument_repo import InstrumentRepository
 
+# ---------------------------------------------------------------
+# Canonical sector instrument IDs per country (from CLAUDE.md spec)
+# Only these instruments appear in sector rankings and the matrix.
+# ---------------------------------------------------------------
+CANONICAL_SECTORS: dict[str, list[str]] = {
+    "US": [
+        "XLK_US", "XLF_US", "XLV_US", "XLY_US", "XLP_US",
+        "XLE_US", "XLI_US", "XLB_US", "XLRE_US", "XLU_US", "XLC_US",
+    ],
+    "IN": [
+        "CNXIT_IN", "NSEBANK_IN", "CNXFIN_IN", "CNXPHARMA_IN",
+        "CNXAUTO_IN", "CNXFMCG_IN", "CNXMETAL_IN", "CNXREALTY_IN",
+        "CNXENERGY_IN", "CNXINFRA_IN", "CNXPSUBANK_IN",
+    ],
+    "JP": [
+        "1615_JP", "1613_JP", "1617_JP", "1618_JP", "1619_JP",
+        "1620_JP", "1621_JP", "1622_JP", "1623_JP", "1624_JP",
+        "1625_JP", "1626_JP", "1627_JP", "1628_JP", "1629_JP",
+        "1633_JP",
+    ],
+    "HK": [
+        # HS sub-indices
+        "HSTECH_HK", "HSFI_HK", "HSPI_HK", "HSUI_HK",
+        # HKEX sector ETFs as fallback
+        "2800_HK", "3067_HK", "3033_HK",
+    ],
+}
+
+CANONICAL_GLOBAL_SECTORS: list[str] = [
+    "IXN_US", "IXG_US", "IXJ_US", "IXC_US", "EXI_US",
+    "RXI_US", "KXI_US", "JXI_US", "MXI_US", "IXP_US",
+]
+
+# One primary index per country (from CLAUDE.md Level 1 spec)
+CANONICAL_COUNTRY_INDICES: list[str] = [
+    "SPX",      # US — S&P 500
+    "FTM",      # UK — FTSE 100
+    "DAX",      # Germany — DAX 40
+    "CAC",      # France — CAC 40
+    "NKX",      # Japan — Nikkei 225
+    "HSI",      # Hong Kong — Hang Seng
+    "CSI300",   # China — CSI 300
+    "KS11",     # South Korea — KOSPI
+    "NSEI",     # India — NIFTY 50
+    "TWII",     # Taiwan — TWSE
+    "AXJO",     # Australia — ASX 200
+    "BVSP",     # Brazil — IBOVESPA
+    "GSPTSE",   # Canada — TSX
+    "NDQ",      # US — NASDAQ 100 (secondary, useful for traders)
+]
+
 logger = logging.getLogger(__name__)
 
 
@@ -85,13 +136,15 @@ def _mock_rs_scores(instrument: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _rs_score_to_dict(score: RSScore, name: str) -> dict[str, Any]:
+def _rs_score_to_dict(score: RSScore, inst: Instrument) -> dict[str, Any]:
     """Convert an RSScore ORM model to a ranking dict."""
     adjusted = float(score.adjusted_rs_score) if score.adjusted_rs_score is not None else 50.0
     momentum = float(score.rs_momentum) if score.rs_momentum is not None else 0.0
     return {
         "instrument_id": score.instrument_id,
-        "name": name,
+        "name": inst.name,
+        "country": inst.country,
+        "sector": inst.sector,
         "adjusted_rs_score": adjusted,
         "quadrant": score.quadrant or "LAGGING",
         "rs_momentum": momentum,
@@ -122,52 +175,119 @@ class RankingRepository:
         self, hierarchy_level: int | None = None,
         country: str | None = None,
         asset_type: str | None = None,
+        asset_types: tuple[str, ...] | None = None,
         sector: str | None = None,
     ) -> list[dict[str, Any]] | None:
-        """Try to get rankings from the database. Returns None if no data."""
+        """Try to get rankings from the database. Returns None if no data.
+
+        Uses each instrument's latest RS score date, not the global max,
+        so instruments computed on different dates are all included.
+        """
         if self._session is None:
             return None
         try:
-            max_date_sub = await self._get_latest_date_subquery()
+            # Build instrument filter conditions
+            inst_conditions = [Instrument.is_active == True]
+            if hierarchy_level is not None:
+                inst_conditions.append(Instrument.hierarchy_level == hierarchy_level)
+            if country is not None:
+                inst_conditions.append(Instrument.country == country)
+            if asset_type is not None:
+                inst_conditions.append(Instrument.asset_type == asset_type)
+            if asset_types is not None:
+                inst_conditions.append(Instrument.asset_type.in_(asset_types))
+            if sector is not None:
+                inst_conditions.append(Instrument.sector == sector)
+
+            # Subquery: latest RS date per matching instrument
+            latest_sub = (
+                select(
+                    RSScore.instrument_id,
+                    func.max(RSScore.date).label("max_date"),
+                )
+                .join(Instrument, Instrument.id == RSScore.instrument_id)
+                .where(*inst_conditions)
+                .group_by(RSScore.instrument_id)
+                .subquery()
+            )
+
             stmt = (
                 select(Instrument, RSScore)
                 .join(RSScore, RSScore.instrument_id == Instrument.id)
-                .where(RSScore.date == max_date_sub)
+                .join(
+                    latest_sub,
+                    (RSScore.instrument_id == latest_sub.c.instrument_id)
+                    & (RSScore.date == latest_sub.c.max_date),
+                )
+                .where(*inst_conditions)
+                .order_by(RSScore.adjusted_rs_score.desc())
             )
-            if hierarchy_level is not None:
-                stmt = stmt.where(Instrument.hierarchy_level == hierarchy_level)
-            if country is not None:
-                stmt = stmt.where(Instrument.country == country)
-            if asset_type is not None:
-                stmt = stmt.where(Instrument.asset_type == asset_type)
-            if sector is not None:
-                stmt = stmt.where(Instrument.sector == sector)
-            stmt = stmt.order_by(RSScore.adjusted_rs_score.desc())
 
             result = await self._session.execute(stmt)
             rows = result.all()
             if not rows:
                 return None
-            return [_rs_score_to_dict(score, inst.name) for inst, score in rows]
+            return [_rs_score_to_dict(score, inst) for inst, score in rows]
         except Exception as e:
             logger.debug("DB ranking query failed: %s", e)
             return None
 
+    async def _try_db_rankings_by_ids(
+        self, instrument_ids: list[str],
+    ) -> list[dict[str, Any]] | None:
+        """Get rankings for a specific set of instrument IDs from the DB.
+
+        Uses each instrument's LATEST RS score date (not the global max),
+        so instruments computed on different dates are all included.
+        """
+        if self._session is None:
+            return None
+        try:
+            # Subquery: latest date per instrument
+            latest_per_inst = (
+                select(
+                    RSScore.instrument_id,
+                    func.max(RSScore.date).label("max_date"),
+                )
+                .where(RSScore.instrument_id.in_(instrument_ids))
+                .group_by(RSScore.instrument_id)
+                .subquery()
+            )
+
+            stmt = (
+                select(Instrument, RSScore)
+                .join(RSScore, RSScore.instrument_id == Instrument.id)
+                .join(
+                    latest_per_inst,
+                    (RSScore.instrument_id == latest_per_inst.c.instrument_id)
+                    & (RSScore.date == latest_per_inst.c.max_date),
+                )
+                .where(Instrument.id.in_(instrument_ids))
+                .order_by(RSScore.adjusted_rs_score.desc())
+            )
+            result = await self._session.execute(stmt)
+            rows = result.all()
+            if not rows:
+                return None
+            return [_rs_score_to_dict(score, inst) for inst, score in rows]
+        except Exception as e:
+            logger.debug("DB ranking by IDs query failed: %s", e)
+            return None
+
     async def get_country_rankings(self) -> list[dict[str, Any]]:
-        """Return Level 1 country index instruments with RS scores."""
-        db_result = await self._try_db_rankings(
-            hierarchy_level=1, asset_type="country_index"
-        )
+        """Return Level 1 canonical country index instruments with RS scores.
+
+        Uses the 14 primary country indices from the CLAUDE.md spec.
+        """
+        db_result = await self._try_db_rankings_by_ids(CANONICAL_COUNTRY_INDICES)
         if db_result is not None:
             return db_result
 
-        # Mock fallback
-        instruments = await self._instrument_repo.get_all(
-            filters={"hierarchy_level": 1}
-        )
+        # Mock fallback using canonical IDs
+        all_instruments = await self._instrument_repo.get_all()
         country_indices = [
-            i for i in instruments
-            if i.get("asset_type") == "country_index"
+            i for i in all_instruments
+            if i["id"] in CANONICAL_COUNTRY_INDICES
         ]
         return sorted(
             [_mock_rs_scores(i) for i in country_indices],
@@ -176,18 +296,42 @@ class RankingRepository:
         )
 
     async def get_sector_rankings(self, country_code: str) -> list[dict[str, Any]]:
-        """Return Level 2 sector instruments for a country with RS scores."""
+        """Return Level 2 sector instruments for a country with RS scores.
+
+        Uses canonical sector lists when available (US, IN, JP, HK) to
+        return only the primary sector ETFs/indices, not thematic/specialty ETFs.
+        Falls back to all sector_etf/sector_index types for other countries.
+        """
+        canonical_ids = CANONICAL_SECTORS.get(country_code)
+
+        if canonical_ids is not None:
+            # Use canonical whitelist
+            db_result = await self._try_db_rankings_by_ids(canonical_ids)
+            if db_result is not None:
+                return db_result
+
+            # Mock fallback for canonical IDs
+            all_instruments = await self._instrument_repo.get_all()
+            instruments = [i for i in all_instruments if i["id"] in canonical_ids]
+            return sorted(
+                [_mock_rs_scores(i) for i in instruments],
+                key=lambda x: x["adjusted_rs_score"],
+                reverse=True,
+            )
+
+        # Non-canonical countries: use asset_type filter
         db_result = await self._try_db_rankings(
-            hierarchy_level=2, country=country_code
+            hierarchy_level=2, country=country_code,
+            asset_types=("sector_etf", "sector_index"),
         )
         if db_result is not None:
             return db_result
 
-        # Mock fallback
         instruments = await self._instrument_repo.get_by_country(country_code)
         sectors = [
             i for i in instruments
             if i.get("hierarchy_level") == 2
+            and i.get("asset_type") in ("sector_etf", "sector_index")
         ]
         return sorted(
             [_mock_rs_scores(i) for i in sectors],
@@ -218,15 +362,17 @@ class RankingRepository:
         )
 
     async def get_global_sector_rankings(self) -> list[dict[str, Any]]:
-        """Return global sector ETF instruments with RS scores."""
-        db_result = await self._try_db_rankings(asset_type="global_sector_etf")
+        """Return canonical global sector ETF rankings (iShares 10 sectors)."""
+        db_result = await self._try_db_rankings_by_ids(CANONICAL_GLOBAL_SECTORS)
         if db_result is not None:
             return db_result
 
-        # Mock fallback
-        instruments = await self._instrument_repo.get_all(
-            filters={"asset_type": "global_sector_etf"}
-        )
+        # Mock fallback — use canonical list only
+        all_instruments = await self._instrument_repo.get_all()
+        instruments = [
+            i for i in all_instruments
+            if i["id"] in CANONICAL_GLOBAL_SECTORS
+        ]
         return sorted(
             [_mock_rs_scores(i) for i in instruments],
             key=lambda x: x["adjusted_rs_score"],

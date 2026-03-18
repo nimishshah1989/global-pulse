@@ -15,6 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import Instrument, RSScore
 from repositories.instrument_repo import InstrumentRepository
+from repositories.ranking_repo import (
+    CANONICAL_COUNTRY_INDICES, CANONICAL_SECTORS, CANONICAL_GLOBAL_SECTORS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +147,7 @@ class RRGRepository:
         hierarchy_level: int | None = None,
         country: str | None = None,
         asset_type: str | None = None,
+        asset_types: tuple[str, ...] | None = None,
         sector: str | None = None,
     ) -> list[dict[str, Any]] | None:
         """Try to get RRG data from the database. Returns None if no data."""
@@ -158,6 +162,8 @@ class RRGRepository:
                 inst_stmt = inst_stmt.where(Instrument.country == country)
             if asset_type is not None:
                 inst_stmt = inst_stmt.where(Instrument.asset_type == asset_type)
+            if asset_types is not None:
+                inst_stmt = inst_stmt.where(Instrument.asset_type.in_(asset_types))
             if sector is not None:
                 inst_stmt = inst_stmt.where(Instrument.sector == sector)
 
@@ -205,32 +211,94 @@ class RRGRepository:
             logger.debug("DB RRG query failed: %s", e)
             return None
 
+    async def _try_db_rrg_by_ids(
+        self, instrument_ids: list[str],
+    ) -> list[dict[str, Any]] | None:
+        """Get RRG data for a specific set of instrument IDs from the DB."""
+        if self._session is None:
+            return None
+        try:
+            inst_stmt = (
+                select(Instrument)
+                .where(Instrument.is_active == True)
+                .where(Instrument.id.in_(instrument_ids))
+            )
+            inst_result = await self._session.execute(inst_stmt)
+            instruments = inst_result.scalars().all()
+            if not instruments:
+                return None
+
+            max_date_result = await self._session.execute(
+                select(func.max(RSScore.date))
+            )
+            max_date = max_date_result.scalar()
+            if max_date is None:
+                return None
+
+            cutoff = max_date - timedelta(days=60)
+            results = []
+            for inst in instruments:
+                score_stmt = (
+                    select(RSScore)
+                    .where(RSScore.instrument_id == inst.id)
+                    .where(RSScore.date >= cutoff)
+                    .order_by(RSScore.date.desc())
+                )
+                score_result = await self._session.execute(score_stmt)
+                scores = list(score_result.scalars().all())
+                if not scores:
+                    continue
+                weekly_scores = scores[::5][:8]
+                if not weekly_scores:
+                    continue
+                results.append(_build_rrg_from_db(inst, weekly_scores))
+
+            if not results:
+                return None
+            return results
+        except Exception as e:
+            logger.debug("DB RRG by IDs query failed: %s", e)
+            return None
+
     async def get_country_rrg(self) -> list[dict[str, Any]]:
-        """Return RRG data for all country indices."""
-        db_result = await self._try_db_rrg(
-            hierarchy_level=1, asset_type="country_index"
-        )
+        """Return RRG data for canonical country indices."""
+        db_result = await self._try_db_rrg_by_ids(CANONICAL_COUNTRY_INDICES)
         if db_result is not None:
             return db_result
 
-        instruments = await self._instrument_repo.get_all(
-            filters={"hierarchy_level": 1}
-        )
+        all_instruments = await self._instrument_repo.get_all()
         country_indices = [
-            i for i in instruments if i.get("asset_type") == "country_index"
+            i for i in all_instruments if i["id"] in CANONICAL_COUNTRY_INDICES
         ]
         return [_build_rrg_point(i) for i in country_indices]
 
     async def get_sector_rrg(self, country_code: str) -> list[dict[str, Any]]:
-        """Return RRG data for sectors within a specific country."""
+        """Return RRG data for canonical sectors within a specific country."""
+        canonical_ids = CANONICAL_SECTORS.get(country_code)
+
+        if canonical_ids is not None:
+            # Use canonical whitelist
+            db_result = await self._try_db_rrg_by_ids(canonical_ids)
+            if db_result is not None:
+                return db_result
+            all_instruments = await self._instrument_repo.get_all()
+            instruments = [i for i in all_instruments if i["id"] in canonical_ids]
+            return [_build_rrg_point(i) for i in instruments]
+
+        # Non-canonical countries: filter by asset type
         db_result = await self._try_db_rrg(
-            hierarchy_level=2, country=country_code
+            hierarchy_level=2, country=country_code,
+            asset_types=("sector_etf", "sector_index"),
         )
         if db_result is not None:
             return db_result
 
         instruments = await self._instrument_repo.get_by_country(country_code)
-        sectors = [i for i in instruments if i.get("hierarchy_level") == 2]
+        sectors = [
+            i for i in instruments
+            if i.get("hierarchy_level") == 2
+            and i.get("asset_type") in ("sector_etf", "sector_index")
+        ]
         return [_build_rrg_point(i) for i in sectors]
 
     async def get_stock_rrg(

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import RRGScatter from '@/components/charts/RRGScatter'
 import RSRankingTable from '@/components/tables/RSRankingTable'
@@ -9,8 +9,9 @@ import ErrorAlert from '@/components/common/ErrorAlert'
 import { useSectorRankings } from '@/api/hooks/useRankings'
 import { useSectorRRG } from '@/api/hooks/useRRG'
 import { useRegime } from '@/api/hooks/useRegime'
+import { useInstrumentPrices, computeRSLineFromPrices } from '@/api/hooks/useInstrument'
 import { MOCK_SECTOR_DATA, getMockRRGData, getMockRSLineData } from '@/data/mockSectorData'
-import { COUNTRY_NAMES } from '@/data/mockCountryData'
+import { COUNTRY_NAMES, COUNTRY_BENCHMARK_MAP } from '@/data/mockCountryData'
 import type { RankingItem } from '@/types/rs'
 
 export default function CountryDeepDive(): JSX.Element {
@@ -27,15 +28,27 @@ export default function CountryDeepDive(): JSX.Element {
   const mockSectors = MOCK_SECTOR_DATA[code] ?? MOCK_SECTOR_DATA['US'] ?? []
   const sectors = sectorData ?? mockSectors
   const rrgData = rrgApiData ?? getMockRRGData(code in MOCK_SECTOR_DATA ? code : 'US')
-  const rsLineData = getMockRSLineData()
 
-  const [selectedSector, setSelectedSector] = useState<string>(
-    sectors[0]?.name ?? '',
-  )
+  const [selectedSectorId, setSelectedSectorId] = useState<string>('')
+  const [selectedSectorName, setSelectedSectorName] = useState<string>('')
+
+  // Fetch price data for selected sector and its benchmark
+  const benchmarkId = COUNTRY_BENCHMARK_MAP[code] ?? 'SPX'
+  const { data: sectorPrices } = useInstrumentPrices(selectedSectorId, 500)
+  const { data: benchmarkPrices } = useInstrumentPrices(benchmarkId, 500)
+
+  // Compute RS line from real prices, fall back to mock
+  const rsLineData = useMemo(() => {
+    if (sectorPrices && benchmarkPrices && sectorPrices.length > 50 && benchmarkPrices.length > 50) {
+      return computeRSLineFromPrices(sectorPrices, benchmarkPrices)
+    }
+    return getMockRSLineData()
+  }, [sectorPrices, benchmarkPrices])
 
   const handleSectorSelect = useCallback(
     (item: RankingItem) => {
-      setSelectedSector(item.name)
+      setSelectedSectorId(item.instrument_id)
+      setSelectedSectorName(item.name)
     },
     [],
   )
@@ -49,6 +62,16 @@ export default function CountryDeepDive(): JSX.Element {
     },
     [navigate, code, sectors],
   )
+
+  // Auto-select first sector if none selected
+  const displaySectorName = selectedSectorName || sectors[0]?.name || 'Select a sector'
+  if (!selectedSectorId && sectors.length > 0) {
+    // Set on next render to avoid setting state during render
+    setTimeout(() => {
+      setSelectedSectorId(sectors[0].instrument_id)
+      setSelectedSectorName(sectors[0].name)
+    }, 0)
+  }
 
   return (
     <div className="space-y-6">
@@ -103,7 +126,7 @@ export default function CountryDeepDive(): JSX.Element {
       <div>
         <RSLineChart
           data={rsLineData}
-          title={`RS Line — ${selectedSector || 'Select a sector'} vs ${countryName} Index`}
+          title={`RS Line — ${displaySectorName} vs ${countryName} Index`}
         />
         <p className="mt-2 text-xs text-slate-400">
           Click a sector row to view its RS line. Click a sector in the RRG chart to navigate to stock selection.

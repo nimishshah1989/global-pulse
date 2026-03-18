@@ -12,7 +12,7 @@ from db.models import Instrument, RSScore, Price
 from db.session import get_db
 from models.common import ApiResponse, Meta
 from repositories.instrument_repo import VALID_COUNTRY_CODES, InstrumentRepository
-from repositories.ranking_repo import RankingRepository
+from repositories.ranking_repo import CANONICAL_SECTORS, RankingRepository
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["system"])
@@ -190,14 +190,28 @@ async def get_matrix(
         instrument_repo = InstrumentRepository(session)
         ranking_repo = RankingRepository(session)
 
-        # Collect all unique sectors from Level 2 instruments
-        all_instruments = await instrument_repo.get_all(
-            filters={"hierarchy_level": 2}
-        )
+        # Collect canonical sector slugs across all countries
+        # Use canonical lists when available, otherwise scan DB
         sectors: set[str] = set()
-        for inst in all_instruments:
-            if inst.get("sector"):
+        canonical_ids: set[str] = set()
+        for country_ids in CANONICAL_SECTORS.values():
+            canonical_ids.update(country_ids)
+
+        # Get sector slugs from canonical instruments
+        for iid in canonical_ids:
+            inst = await instrument_repo.get_by_id(iid)
+            if inst and inst.get("sector"):
                 sectors.add(inst["sector"])
+
+        # Also check non-canonical countries
+        for country in VALID_COUNTRY_CODES:
+            if country in CANONICAL_SECTORS:
+                continue
+            rankings = await ranking_repo.get_sector_rankings(country)
+            for item in rankings:
+                inst = await instrument_repo.get_by_id(item["instrument_id"])
+                if inst and inst.get("sector"):
+                    sectors.add(inst["sector"])
 
         countries = sorted(VALID_COUNTRY_CODES)
         sorted_sectors = sorted(sectors)
@@ -208,7 +222,6 @@ async def get_matrix(
             rankings = await ranking_repo.get_sector_rankings(country)
             country_sectors: dict[str, dict[str, Any]] = {}
             for item in rankings:
-                # Find the sector slug for this instrument
                 inst = await instrument_repo.get_by_id(item["instrument_id"])
                 if inst and inst.get("sector"):
                     country_sectors[inst["sector"]] = {

@@ -1,15 +1,52 @@
-"""Opportunity repository — in-memory mock data for opportunity signals.
+"""Opportunity repository — DB-backed with mock fallback.
 
-Generates realistic opportunity signals until backed by a real database.
-Pre-populated with representative samples of each signal type.
+Reads opportunity signals from the opportunities table. Falls back to
+deterministic mock data if the DB has no data.
 """
 
 import datetime
+import json
+import logging
 import uuid
 from typing import Any
 
+from sqlalchemy import select, func, desc
+from sqlalchemy.ext.asyncio import AsyncSession
 
-def _make_opportunity(
+from db.models import Opportunity
+
+logger = logging.getLogger(__name__)
+
+
+def _parse_metadata(raw: Any) -> dict[str, Any]:
+    """Parse metadata from DB — may be JSON string or dict."""
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        try:
+            return json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    return {}
+
+
+def _opportunity_to_dict(opp: Opportunity) -> dict[str, Any]:
+    """Convert an Opportunity ORM model to a response dict."""
+    return {
+        "id": uuid.UUID(opp.id) if isinstance(opp.id, str) else opp.id,
+        "instrument_id": opp.instrument_id,
+        "date": opp.date,
+        "signal_type": opp.signal_type,
+        "conviction_score": float(opp.conviction_score) if opp.conviction_score is not None else None,
+        "description": opp.description,
+        "metadata": _parse_metadata(opp.metadata_),
+        "created_at": opp.created_at or datetime.datetime.now(tz=datetime.timezone.utc),
+    }
+
+
+def _make_mock_opportunity(
     instrument_id: str,
     signal_type: str,
     conviction_score: float,
@@ -17,7 +54,7 @@ def _make_opportunity(
     metadata: dict[str, Any] | None = None,
     days_ago: int = 0,
 ) -> dict[str, Any]:
-    """Build a single opportunity dict with auto-generated id and timestamps."""
+    """Build a single mock opportunity dict."""
     today = datetime.date(2026, 3, 17)
     signal_date = today - datetime.timedelta(days=days_ago)
     return {
@@ -38,90 +75,62 @@ def _make_opportunity(
 def _build_mock_opportunities() -> list[dict[str, Any]]:
     """Create a pre-populated set of realistic mock opportunities."""
     return [
-        # 3 quadrant_entry_leading signals
-        _make_opportunity(
+        _make_mock_opportunity(
             "EWJ_US", "quadrant_entry_leading", 78.50,
             "EWJ_US entered LEADING quadrant (from IMPROVING)",
-            {"previous_quadrant": "IMPROVING", "current_quadrant": "LEADING",
-             "adjusted_rs_score": "78.50", "rs_momentum": "12.30"},
-            days_ago=0,
+            {"previous_quadrant": "IMPROVING", "current_quadrant": "LEADING"},
         ),
-        _make_opportunity(
+        _make_mock_opportunity(
             "XLK_US", "quadrant_entry_leading", 82.15,
             "XLK_US entered LEADING quadrant (from WEAKENING)",
-            {"previous_quadrant": "WEAKENING", "current_quadrant": "LEADING",
-             "adjusted_rs_score": "82.15", "rs_momentum": "8.40"},
+            {"previous_quadrant": "WEAKENING", "current_quadrant": "LEADING"},
             days_ago=1,
         ),
-        _make_opportunity(
-            "EWT_US", "quadrant_entry_leading", 71.30,
-            "EWT_US entered LEADING quadrant (from IMPROVING)",
-            {"previous_quadrant": "IMPROVING", "current_quadrant": "LEADING",
-             "adjusted_rs_score": "71.30", "rs_momentum": "15.60"},
-            days_ago=2,
-        ),
-        # 2 volume_breakout signals
-        _make_opportunity(
+        _make_mock_opportunity(
             "INDA_US", "volume_breakout", 74.25,
             "INDA_US RS turning positive with volume 1.8x average",
-            {"rs_momentum": "5.20", "volume_ratio": "1.800",
-             "adjusted_rs_score": "74.25"},
-            days_ago=0,
+            {"rs_momentum": "5.20", "volume_ratio": "1.800"},
         ),
-        _make_opportunity(
-            "XLE_US", "volume_breakout", 68.90,
-            "XLE_US RS turning positive with volume 1.6x average",
-            {"rs_momentum": "3.10", "volume_ratio": "1.600",
-             "adjusted_rs_score": "68.90"},
-            days_ago=1,
-        ),
-        # 1 multi_level_alignment (India -> NIFTY Metal -> Tata Steel)
-        _make_opportunity(
+        _make_mock_opportunity(
             "TATASTEEL_IN", "multi_level_alignment", 72.40,
             "India LEADING globally -> NIFTY Metal LEADING in India -> "
             "Tata Steel LEADING in NIFTY Metal",
             {
-                "country_id": "NIFTY50_IN",
-                "country_name": "India",
+                "country_id": "NIFTY50_IN", "country_name": "India",
                 "country_quadrant": "LEADING",
-                "sector_id": "NIFTYMETAL_IN",
-                "sector_name": "NIFTY Metal",
+                "sector_id": "NIFTYMETAL_IN", "sector_name": "NIFTY Metal",
                 "sector_quadrant": "LEADING",
-                "stock_id": "TATASTEEL_IN",
-                "stock_name": "Tata Steel",
+                "stock_id": "TATASTEEL_IN", "stock_name": "Tata Steel",
                 "stock_quadrant": "LEADING",
             },
-            days_ago=0,
         ),
-        # 1 regime_change
-        _make_opportunity(
+        _make_mock_opportunity(
             "ACWI_US", "regime_change", 95.00,
             "Global regime changed to RISK_OFF — ACWI crossed below 200-day MA",
             {"previous_regime": "RISK_ON", "current_regime": "RISK_OFF"},
             days_ago=5,
         ),
-        # 2 extension_alerts
-        _make_opportunity(
+        _make_mock_opportunity(
             "XLK_US", "extension_alert", 88.50,
             "XLK_US extended — RS in top 5% across all timeframes",
             {"rs_pct_3m": "97.20", "rs_pct_6m": "96.80", "rs_pct_12m": "93.10"},
-            days_ago=0,
-        ),
-        _make_opportunity(
-            "EWJ_US", "extension_alert", 79.00,
-            "EWJ_US extended — RS in top 5% across all timeframes",
-            {"rs_pct_3m": "96.50", "rs_pct_6m": "95.30", "rs_pct_12m": "91.40"},
-            days_ago=1,
         ),
     ]
 
 
 class OpportunityRepository:
-    """In-memory repository for opportunity signals."""
+    """Repository for opportunity signals, DB-backed with mock fallback."""
 
-    def __init__(self) -> None:
-        """Initialize with pre-populated mock opportunities."""
-        self._opportunities: list[dict[str, Any]] = _build_mock_opportunities()
+    def __init__(self, session: AsyncSession | None = None) -> None:
+        """Initialize with an optional DB session."""
+        self._session = session
+        self._mock_opportunities: list[dict[str, Any]] | None = None
+
+    def _get_mock(self) -> list[dict[str, Any]]:
+        """Lazy-load mock opportunities."""
+        if self._mock_opportunities is None:
+            self._mock_opportunities = _build_mock_opportunities()
+        return self._mock_opportunities
 
     async def get_latest(
         self,
@@ -130,70 +139,59 @@ class OpportunityRepository:
         min_conviction: float | None = None,
         hierarchy_level: int | None = None,
     ) -> list[dict[str, Any]]:
-        """Retrieve latest opportunity signals with optional filters.
+        """Retrieve latest opportunity signals with optional filters."""
+        # Try DB first
+        if self._session is not None:
+            try:
+                stmt = select(Opportunity).order_by(
+                    desc(Opportunity.date),
+                    desc(Opportunity.conviction_score),
+                )
+                if signal_type is not None:
+                    stmt = stmt.where(Opportunity.signal_type == signal_type)
+                if min_conviction is not None:
+                    stmt = stmt.where(Opportunity.conviction_score >= min_conviction)
+                stmt = stmt.limit(limit)
 
-        Args:
-            limit: Maximum number of results to return.
-            signal_type: Filter by signal type string.
-            min_conviction: Minimum conviction score threshold.
-            hierarchy_level: Filter by instrument hierarchy level
-                (not enforced in mock — included for interface compliance).
+                result = await self._session.execute(stmt)
+                rows = result.scalars().all()
+                if rows:
+                    return [_opportunity_to_dict(r) for r in rows]
+            except Exception as e:
+                logger.debug("DB opportunity query failed: %s", e)
 
-        Returns:
-            List of opportunity dicts sorted by date desc, then conviction desc.
-        """
-        results = list(self._opportunities)
-
+        # Mock fallback
+        results = list(self._get_mock())
         if signal_type is not None:
             results = [o for o in results if o["signal_type"] == signal_type]
-
         if min_conviction is not None:
-            results = [
-                o for o in results if o["conviction_score"] >= min_conviction
-            ]
-
-        results.sort(
-            key=lambda o: (o["date"], o["conviction_score"]),
-            reverse=True,
-        )
-
+            results = [o for o in results if (o["conviction_score"] or 0) >= min_conviction]
+        results.sort(key=lambda o: (o["date"], o["conviction_score"] or 0), reverse=True)
         return results[:limit]
 
     async def get_multi_level_alignments(
         self, limit: int = 20
     ) -> list[dict[str, Any]]:
-        """Retrieve only multi-level alignment signals.
+        """Retrieve only multi-level alignment signals."""
+        if self._session is not None:
+            try:
+                stmt = (
+                    select(Opportunity)
+                    .where(Opportunity.signal_type == "multi_level_alignment")
+                    .order_by(desc(Opportunity.conviction_score))
+                    .limit(limit)
+                )
+                result = await self._session.execute(stmt)
+                rows = result.scalars().all()
+                if rows:
+                    return [_opportunity_to_dict(r) for r in rows]
+            except Exception as e:
+                logger.debug("DB multi-level query failed: %s", e)
 
-        Args:
-            limit: Maximum number of results.
-
-        Returns:
-            List of multi_level_alignment opportunity dicts.
-        """
+        # Mock fallback
         results = [
-            o for o in self._opportunities
+            o for o in self._get_mock()
             if o["signal_type"] == "multi_level_alignment"
         ]
-        results.sort(
-            key=lambda o: o["conviction_score"], reverse=True
-        )
+        results.sort(key=lambda o: o["conviction_score"] or 0, reverse=True)
         return results[:limit]
-
-    async def create(self, opportunity: dict[str, Any]) -> dict[str, Any]:
-        """Persist a new opportunity signal.
-
-        Args:
-            opportunity: Opportunity dict (id and created_at are auto-set
-                if missing).
-
-        Returns:
-            The stored opportunity dict with all fields populated.
-        """
-        if "id" not in opportunity:
-            opportunity["id"] = uuid.uuid4()
-        if "created_at" not in opportunity:
-            opportunity["created_at"] = datetime.datetime.now(
-                tz=datetime.timezone.utc
-            )
-        self._opportunities.append(opportunity)
-        return opportunity

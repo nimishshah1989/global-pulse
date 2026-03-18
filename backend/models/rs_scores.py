@@ -42,6 +42,8 @@ class RankingItem(BaseModel):
 
     instrument_id: str
     name: str
+    country: str | None = None
+    sector: str | None = None
     adjusted_rs_score: float | None = None
     quadrant: str | None = None
     rs_momentum: float | None = None

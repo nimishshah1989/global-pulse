@@ -7,14 +7,14 @@ from httpx import AsyncClient
 @pytest.mark.asyncio
 async def test_list_opportunities_200(async_client: AsyncClient) -> None:
     """GET /api/opportunities/ should return 200."""
-    response = await async_client.get("/api/opportunities/")
+    response = await async_client.get("/api/opportunities")
     assert response.status_code == 200
 
 
 @pytest.mark.asyncio
 async def test_response_envelope_shape(async_client: AsyncClient) -> None:
     """Response should have data (list) and meta with timestamp and count."""
-    response = await async_client.get("/api/opportunities/")
+    response = await async_client.get("/api/opportunities")
     body = response.json()
     assert "data" in body
     assert "meta" in body
@@ -28,7 +28,7 @@ async def test_response_envelope_shape(async_client: AsyncClient) -> None:
 async def test_filter_by_signal_type(async_client: AsyncClient) -> None:
     """Filtering by signal_type should only return that type."""
     response = await async_client.get(
-        "/api/opportunities/", params={"signal_type": "volume_breakout"}
+        "/api/opportunities", params={"signal_type": "volume_breakout"}
     )
     assert response.status_code == 200
     body = response.json()
@@ -40,7 +40,7 @@ async def test_filter_by_signal_type(async_client: AsyncClient) -> None:
 async def test_filter_by_min_conviction(async_client: AsyncClient) -> None:
     """Filtering by min_conviction should exclude lower-scoring signals."""
     response = await async_client.get(
-        "/api/opportunities/", params={"min_conviction": 80.0}
+        "/api/opportunities", params={"min_conviction": 80.0}
     )
     assert response.status_code == 200
     body = response.json()
@@ -68,7 +68,7 @@ async def test_opportunities_have_required_fields(
     async_client: AsyncClient,
 ) -> None:
     """Each opportunity should have the required fields."""
-    response = await async_client.get("/api/opportunities/")
+    response = await async_client.get("/api/opportunities")
     body = response.json()
     required_fields = {
         "id", "instrument_id", "date", "signal_type",
@@ -83,7 +83,7 @@ async def test_opportunities_have_required_fields(
 async def test_limit_parameter(async_client: AsyncClient) -> None:
     """Limit parameter should cap the number of results."""
     response = await async_client.get(
-        "/api/opportunities/", params={"limit": 2}
+        "/api/opportunities", params={"limit": 2}
     )
     assert response.status_code == 200
     body = response.json()

@@ -34,6 +34,23 @@ export const COUNTRY_NAMES: Record<string, string> = {
   CA: 'Canada',
 }
 
+/** Maps country code to its primary index instrument ID for benchmark comparisons. */
+export const COUNTRY_BENCHMARK_MAP: Record<string, string> = {
+  US: 'SPX',
+  UK: 'FTM',
+  DE: 'DAX',
+  FR: 'CAC',
+  JP: 'NKX',
+  HK: 'HSI',
+  CN: 'CSI300',
+  KR: 'KS11',
+  IN: 'NSEI',
+  TW: 'TWII',
+  AU: 'AXJO',
+  BR: 'BVSP',
+  CA: 'GSPTSE',
+}
+
 export const MOCK_COUNTRY_DATA: RankingItem[] = [
   { instrument_id: 'SPX', name: 'S&P 500', country: 'US', sector: null, adjusted_rs_score: 72.5, rs_momentum: 8.3, quadrant: 'LEADING', rs_pct_1m: 68, rs_pct_3m: 75, rs_pct_6m: 80, rs_pct_12m: 65, volume_ratio: 1.15, rs_trend: 'OUTPERFORMING', liquidity_tier: 1, extension_warning: false },
   { instrument_id: 'NKX', name: 'Nikkei 225', country: 'JP', sector: null, adjusted_rs_score: 68.1, rs_momentum: 12.5, quadrant: 'LEADING', rs_pct_1m: 72, rs_pct_3m: 70, rs_pct_6m: 66, rs_pct_12m: 62, volume_ratio: 1.22, rs_trend: 'OUTPERFORMING', liquidity_tier: 1, extension_warning: false },
