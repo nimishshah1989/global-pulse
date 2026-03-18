@@ -4,8 +4,6 @@ import Layout from '@/components/layout/Layout'
 import ErrorBoundary from '@/components/common/ErrorBoundary'
 
 const GlobalPulse = lazy(() => import('@/screens/GlobalPulse'))
-const CountryDeepDive = lazy(() => import('@/screens/CountryDeepDive'))
-const SectorMatrix = lazy(() => import('@/screens/SectorMatrix'))
 const TopETFs = lazy(() => import('@/screens/TopETFs'))
 const OpportunityScanner = lazy(() => import('@/screens/OpportunityScanner'))
 const Methodology = lazy(() => import('@/screens/Methodology'))
@@ -26,8 +24,6 @@ function App(): JSX.Element {
           <Routes>
             <Route path="/" element={<Navigate to="/compass" replace />} />
             <Route path="/compass" element={<GlobalPulse />} />
-            <Route path="/compass/country/:countryCode" element={<CountryDeepDive />} />
-            <Route path="/compass/matrix" element={<SectorMatrix />} />
             <Route path="/compass/etfs" element={<TopETFs />} />
             <Route path="/compass/opportunities" element={<OpportunityScanner />} />
             <Route path="/compass/methodology" element={<Methodology />} />
