@@ -38,6 +38,8 @@ def get_engine() -> AsyncEngine:
         kwargs["pool_size"] = 20
         kwargs["max_overflow"] = 10
         kwargs["pool_pre_ping"] = True
+        kwargs["pool_timeout"] = 10
+        kwargs["connect_args"] = {"timeout": 10}
 
     _engine = create_async_engine(url, **kwargs)
     return _engine

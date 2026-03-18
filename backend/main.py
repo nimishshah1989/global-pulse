@@ -28,16 +28,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     when PostgreSQL is unavailable (JSON-backed repos still work).
     """
     try:
+        import asyncio
+
         from db.models import Base
         from db.session import get_engine
         from sqlalchemy import text
 
         eng = get_engine()
         # Create tables if they don't exist (safe for production — no-op if already created)
-        async with eng.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        async with eng.connect() as conn:
-            await conn.execute(text("SELECT 1"))
+        async with asyncio.timeout(30):
+            async with eng.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            async with eng.connect() as conn:
+                await conn.execute(text("SELECT 1"))
         logger.info("Database connection validated successfully.")
     except Exception as exc:
         logger.warning(
