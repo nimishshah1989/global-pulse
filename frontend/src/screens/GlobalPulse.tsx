@@ -307,12 +307,16 @@ export default function GlobalPulse(): JSX.Element {
         <LoadingSkeleton type="chart" />
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white p-6">
-          <WorldChoropleth data={rankings} />
+          <WorldChoropleth data={rankings} onCountryClick={(code) => {
+            setExpandedCountry((prev) => (prev === code ? null : code))
+            // Scroll to country cards section
+            document.getElementById('country-rankings')?.scrollIntoView({ behavior: 'smooth' })
+          }} />
         </div>
       )}
 
       {/* Country Cards — expandable drill-down */}
-      <div>
+      <div id="country-rankings">
         <h2 className="mb-3 text-lg font-semibold text-slate-800">Country Rankings</h2>
         {countriesLoading ? (
           <LoadingSkeleton type="table" rows={8} />

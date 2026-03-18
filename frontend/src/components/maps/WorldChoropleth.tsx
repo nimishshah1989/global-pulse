@@ -6,7 +6,7 @@ import {
   Marker,
   ZoomableGroup,
 } from 'react-simple-maps'
-import { useNavigate } from 'react-router-dom'
+// No navigation — map is display-only, drill-down is via country cards
 import { scaleSequential, interpolateRdYlGn } from 'd3'
 import type { RankingItem } from '@/types/rs'
 
@@ -87,10 +87,10 @@ interface TooltipData {
 
 interface WorldChoroplethProps {
   data: RankingItem[]
+  onCountryClick?: (countryCode: string) => void
 }
 
-function WorldChoroplethInner({ data }: WorldChoroplethProps): JSX.Element {
-  const navigate = useNavigate()
+function WorldChoroplethInner({ data, onCountryClick }: WorldChoroplethProps): JSX.Element {
   const [tooltip, setTooltip] = useState<TooltipData | null>(null)
   const [pulsingCountry, setPulsingCountry] = useState<string | null>(null)
 
@@ -106,10 +106,10 @@ function WorldChoroplethInner({ data }: WorldChoroplethProps): JSX.Element {
       setPulsingCountry(countryCode)
       setTimeout(() => {
         setPulsingCountry(null)
-        navigate(`/compass/country/${countryCode}`)
       }, 300)
+      onCountryClick?.(countryCode)
     },
-    [navigate],
+    [onCountryClick],
   )
 
   return (
