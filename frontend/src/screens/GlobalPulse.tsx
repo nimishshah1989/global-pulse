@@ -45,6 +45,10 @@ function matrixActionStyle(action: string): string {
     REDUCE: 'bg-orange-100 text-orange-800',
     SELL: 'bg-red-100 text-red-800',
     AVOID: 'bg-slate-100 text-slate-700',
+    LEADING: 'bg-emerald-100 text-emerald-800',
+    IMPROVING: 'bg-teal-100 text-teal-800',
+    WEAKENING: 'bg-orange-100 text-orange-800',
+    LAGGING: 'bg-red-100 text-red-800',
   }
   return map[action] ?? 'bg-slate-50 text-slate-600'
 }
@@ -54,6 +58,7 @@ function actionShortLabel(action: string): string {
     BUY: 'Buy', ACCUMULATE: 'Acc', HOLD_DIVERGENCE: 'Hold',
     HOLD_FADING: 'Hold', WATCH: 'Watch', REDUCE: 'Red',
     SELL: 'Sell', AVOID: 'Avoid',
+    LEADING: 'Buy', IMPROVING: 'Acc', WEAKENING: 'Red', LAGGING: 'Sell',
   }
   return map[action] ?? '?'
 }

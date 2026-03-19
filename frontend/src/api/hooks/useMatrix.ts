@@ -16,7 +16,7 @@ export interface MatrixCell {
 interface ApiMatrixResponse {
   countries: string[]
   sectors: string[]
-  matrix: Record<string, Record<string, { score: number; quadrant: string }>>
+  matrix: Record<string, Record<string, { score: number; action?: string; quadrant?: string }>>
 }
 
 export interface MatrixData {
@@ -44,7 +44,7 @@ function normalizeApiResponse(raw: ApiMatrixResponse): MatrixData {
           country,
           sector,
           rs_score: cell.score,
-          action: cell.quadrant,
+          action: cell.action ?? cell.quadrant ?? 'WATCH',
         })
         countrySum += cell.score
         countryCount++

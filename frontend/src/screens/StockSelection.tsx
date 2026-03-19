@@ -10,7 +10,7 @@ import ErrorAlert from '@/components/common/ErrorAlert'
 import { useStockRankings } from '@/api/hooks/useRankings'
 import { useStockRRG } from '@/api/hooks/useRRG'
 import { useAddPosition } from '@/api/hooks/useBaskets'
-import { MOCK_STOCK_DATA, getMockStockRRGData } from '@/data/mockStockData'
+import { getMockStockRRGData } from '@/data/mockStockData'
 
 type ActionFilterGroup = 'ALL' | 'BUY' | 'HOLD' | 'SELL' | 'WATCH' | 'ACCUMULATE' | 'REDUCE' | 'AVOID'
 
@@ -55,8 +55,8 @@ export default function StockSelection(): JSX.Element {
   const { data: stockData, isLoading: stocksLoading, error: stocksError, refetch: refetchStocks } = useStockRankings(code, sector)
   const { data: rrgApiData, isLoading: rrgLoading } = useStockRRG(code, sector)
 
-  const stocks: RankingItem[] = Array.isArray(stockData) && stockData.length > 0 ? stockData : MOCK_STOCK_DATA
-  const rrgData = rrgApiData ?? getMockStockRRGData()
+  const stocks: RankingItem[] = Array.isArray(stockData) ? stockData : []
+  const rrgData = rrgApiData ?? (stocks.length > 0 ? getMockStockRRGData() : [])
 
   const [actionFilter, setActionFilter] = useState<ActionFilterGroup>('ALL')
   const [rsMinimum, setRsMinimum] = useState(0)
@@ -140,6 +140,11 @@ export default function StockSelection(): JSX.Element {
       {/* Stock table */}
       {stocksLoading ? (
         <LoadingSkeleton type="table" rows={12} />
+      ) : stocks.length === 0 ? (
+        <div className="rounded-xl border border-slate-200 bg-white px-8 py-16 text-center">
+          <p className="text-sm text-slate-500">No stock data available for this sector yet.</p>
+          <p className="mt-1 text-xs text-slate-400">Stock RS scores are computed once constituent data is loaded.</p>
+        </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
           <table className="w-full text-sm">

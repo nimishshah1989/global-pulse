@@ -59,12 +59,45 @@ _QUADRANT_TO_ACTION: dict[str, str] = {
 }
 
 
+def _resolve_action(quadrant: str, rs_score: float) -> str:
+    """Derive action from quadrant AND RS score to avoid contradictions.
+
+    Quadrant alone can produce misleading signals (e.g. IMPROVING + RS 38
+    → ACCUMULATE, which looks bullish). Override with score-aware logic.
+    """
+    base = _QUADRANT_TO_ACTION.get(quadrant, quadrant)
+
+    # Very weak RS — never show bullish action regardless of quadrant
+    if rs_score < 30:
+        if base in ("BUY", "ACCUMULATE"):
+            return "AVOID"
+        return base
+    if rs_score < 40:
+        if base == "BUY":
+            return "WATCH"
+        if base == "ACCUMULATE":
+            return "WATCH"
+        return base
+    if rs_score < 50:
+        if base == "BUY":
+            return "ACCUMULATE"
+        return base
+
+    # Very strong RS — never show bearish action regardless of quadrant
+    if rs_score >= 70:
+        if base in ("SELL", "AVOID"):
+            return "REDUCE"
+        return base
+
+    return base
+
+
 def _rs_score_to_v2_dict(score: RSScore, inst: Instrument) -> dict[str, Any]:
     """Convert RSScore ORM model to v2 ranking dict."""
     adjusted = float(score.adjusted_rs_score) if score.adjusted_rs_score is not None else 50.0
     momentum = float(score.rs_momentum) if score.rs_momentum is not None else 0.0
     raw_quadrant = score.quadrant or "WATCH"
-    action = _QUADRANT_TO_ACTION.get(raw_quadrant, raw_quadrant)
+    action = _resolve_action(raw_quadrant, adjusted)
     rs_line = float(score.rs_line) if score.rs_line is not None else None
     rs_ma = float(score.rs_ma_150) if score.rs_ma_150 is not None else None
     price_trend = score.rs_trend or "UNDERPERFORMING"
