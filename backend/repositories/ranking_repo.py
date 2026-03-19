@@ -434,16 +434,32 @@ class RankingRepository:
         self, country_code: str, as_of: datetime.date | None = None,
         benchmark: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Return sector rankings for a country."""
+        """Return sector rankings for a country.
+
+        Strategy: first try canonical IDs, then fall back to dynamic query
+        for any instrument in this country with a non-null GICS sector.
+        """
         canonical_ids = CANONICAL_SECTORS.get(country_code)
         if canonical_ids is not None:
             items = await self._get_rankings_by_ids(canonical_ids, as_of=as_of)
-        else:
-            items = await self._get_rankings_filtered(
-                country=country_code,
-                asset_types=("sector_etf", "sector_index"),
-            )
-        return await self._enrich_with_returns(items, benchmark_override=benchmark)
+            if items:
+                return await self._enrich_with_returns(items, benchmark_override=benchmark)
+
+        # Dynamic fallback: get best ETF per GICS sector in this country
+        items = await self._get_rankings_filtered(
+            country=country_code,
+            asset_types=("sector_etf", "sector_index", "etf"),
+        )
+        # Deduplicate: keep the highest-RS ETF per sector
+        seen_sectors: dict[str, dict[str, Any]] = {}
+        for item in items:
+            sector = item.get("sector")
+            if not sector:
+                continue
+            if sector not in seen_sectors or item["rs_score"] > seen_sectors[sector]["rs_score"]:
+                seen_sectors[sector] = item
+        deduped = sorted(seen_sectors.values(), key=lambda x: x["rs_score"], reverse=True)
+        return await self._enrich_with_returns(deduped or items, benchmark_override=benchmark)
 
     async def get_stock_rankings(
         self, country_code: str, sector: str,

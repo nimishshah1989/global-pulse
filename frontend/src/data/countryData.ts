@@ -1,0 +1,47 @@
+export const COUNTRY_FLAGS: Record<string, string> = {
+  US: '\uD83C\uDDFA\uD83C\uDDF8',
+  UK: '\uD83C\uDDEC\uD83C\uDDE7',
+  GB: '\uD83C\uDDEC\uD83C\uDDE7',
+  DE: '\uD83C\uDDE9\uD83C\uDDEA',
+  FR: '\uD83C\uDDEB\uD83C\uDDF7',
+  JP: '\uD83C\uDDEF\uD83C\uDDF5',
+  HK: '\uD83C\uDDED\uD83C\uDDF0',
+  CN: '\uD83C\uDDE8\uD83C\uDDF3',
+  KR: '\uD83C\uDDF0\uD83C\uDDF7',
+  IN: '\uD83C\uDDEE\uD83C\uDDF3',
+  TW: '\uD83C\uDDF9\uD83C\uDDFC',
+  AU: '\uD83C\uDDE6\uD83C\uDDFA',
+  BR: '\uD83C\uDDE7\uD83C\uDDF7',
+  CA: '\uD83C\uDDE8\uD83C\uDDE6',
+}
+
+export const COUNTRY_NAMES: Record<string, string> = {
+  US: 'United States',
+  UK: 'United Kingdom',
+  GB: 'United Kingdom',
+  DE: 'Germany',
+  FR: 'France',
+  JP: 'Japan',
+  HK: 'Hong Kong',
+  CN: 'China',
+  KR: 'South Korea',
+  IN: 'India',
+  TW: 'Taiwan',
+  AU: 'Australia',
+  BR: 'Brazil',
+  CA: 'Canada',
+}
+
+export const SECTOR_DISPLAY_NAMES: Record<string, string> = {
+  technology: 'Technology',
+  financials: 'Financials',
+  healthcare: 'Healthcare',
+  energy: 'Energy',
+  industrials: 'Industrials',
+  materials: 'Materials',
+  consumer_discretionary: 'Consumer Discretionary',
+  consumer_staples: 'Consumer Staples',
+  communication_services: 'Communication Services',
+  utilities: 'Utilities',
+  real_estate: 'Real Estate',
+}

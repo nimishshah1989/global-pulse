@@ -162,7 +162,7 @@ class Basket(Base):
         Text, ForeignKey("instruments.id"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow
+        DateTime, default=lambda: datetime.utcnow()
     )
     status: Mapped[str] = mapped_column(Text, default="active")
     weighting_method: Mapped[str] = mapped_column(Text, default="equal")
@@ -198,7 +198,7 @@ class BasketPosition(Base):
     )
     weight: Mapped[float] = mapped_column(Numeric(8, 6), nullable=False)
     added_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow
+        DateTime, default=lambda: datetime.utcnow()
     )
     removed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True
@@ -248,7 +248,7 @@ class Opportunity(Base):
         "metadata", JSON, nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow
+        DateTime, default=lambda: datetime.utcnow()
     )
 
     instrument = relationship("Instrument", lazy="selectin")

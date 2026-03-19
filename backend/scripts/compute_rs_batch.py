@@ -477,7 +477,7 @@ async def main() -> None:
                         "conviction": float(sig["conviction_score"]),
                         "description": sig["description"],
                         "metadata": json.dumps(clean_meta),
-                        "created_at": datetime.now(tz=timezone.utc).isoformat(),
+                        "created_at": datetime.now(tz=timezone.utc),
                     },
                 )
             await session.commit()
