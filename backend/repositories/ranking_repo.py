@@ -17,6 +17,7 @@ from repositories.instrument_repo import InstrumentRepository
 logger = logging.getLogger(__name__)
 
 # Canonical sector instrument IDs per country
+# Each country should have ~11 GICS sector coverage + additional depth ETFs
 CANONICAL_SECTORS: dict[str, list[str]] = {
     "US": [
         "XLK_US", "XLF_US", "XLV_US", "XLY_US", "XLP_US",
@@ -26,23 +27,110 @@ CANONICAL_SECTORS: dict[str, list[str]] = {
         "CNXIT_IN", "NSEBANK_IN", "CNXFIN_IN", "CNXPHARMA_IN",
         "CNXAUTO_IN", "CNXFMCG_IN", "CNXMETAL_IN", "CNXREALTY_IN",
         "CNXENERGY_IN", "CNXINFRA_IN", "CNXPSUBANK_IN",
+        "NIFTY_MEDIA_IN", "NIFTY_CONS_IN",
     ],
     "JP": [
         "1615_JP", "1613_JP", "1617_JP", "1618_JP", "1619_JP",
         "1620_JP", "1621_JP", "1622_JP", "1623_JP", "1624_JP",
         "1625_JP", "1626_JP", "1627_JP", "1628_JP", "1629_JP",
-        "1633_JP",
+        "1630_JP", "1631_JP", "1632_JP", "1633_JP", "1634_JP",
+        "1635_JP", "1636_JP",
     ],
     "HK": [
+        # Hang Seng sector indices
         "HSTECH_HK", "HSFI_HK", "HSPI_HK", "HSUI_HK",
-        "2800_HK", "3067_HK", "3033_HK",
-        # China/HK sector ETFs (US-listed, track Greater China sectors)
-        "CHIQ_US", "KURE_US", "CHII_US", "CHIE_US",
-        "CHIM_US", "KWEB_US", "CHIS_US", "CHIR_US",
+        "HSHC_HK", "HSCI_HK", "HSIN_HK", "HSEN_HK",
+        "HSMT_HK", "HSCM_HK", "CHIS_HK",
+        # Sector ETFs (HK-listed + US-listed)
+        "3033_HK", "3067_HK", "2801_HK", "3037_HK",
+        "3174_HK", "3024_HK", "3191_HK",
+    ],
+    "KR": [
+        # KODEX sector ETFs
+        "KODEX_FIN_KR", "KODEX_HC_KR", "KODEX_IND_KR",
+        "KODEX_SEM_KR", "TIGER_KR", "KODEX_BAT_KR",
+        "KODEX_CS_KR", "KODEX_CD_KR", "KODEX_UT_KR",
+        "KODEX_RE_KR", "KODEX_EN_KR", "KODEX_MT_KR",
+        "KODEX_CM_KR", "KODEX_BK_KR", "KODEX_CON_KR",
+        "KODEX_INS_KR", "KODEX_AUTO_KR", "KODEX_SHIP_KR",
+        # TIGER duplicates for depth
+        "TIGER_FIN_KR", "TIGER_HC_KR", "TIGER_BIO_KR",
+        "TIGER_EN_KR", "TIGER_MT_KR", "TIGER_CD_KR",
+        "TIGER_CS_KR", "TIGER_IND_KR", "TIGER_CM_KR",
+        "TIGER_UT_KR",
+    ],
+    "CN": [
+        # Global X MSCI China sector ETFs (US-listed)
+        "CHIQ_US", "CHIS_US", "CHIE_US", "CHIF_US",
+        "CHIH_US", "CHII_US", "CHIM_US", "CHIR_US",
+        "CHIU_US", "CHIC_US",
+        # Additional tech depth
+        "KWEB_US", "CQQQ_US", "CNQQ_US", "KURE_US", "KGRN_US",
+    ],
+    "TW": [
+        # TWSE sector indices + ETFs
+        "TWSE_TECH_TW", "TWSE_FIN_TW", "0052_TW", "0055_TW",
+        "TWSE_ELEC_TW", "TWSE_SEMI_TW",
+        "00891_TW", "00892_TW", "00893_TW", "00894_TW",
+        "00895_TW", "00896_TW",
+    ],
+    "AU": [
+        # S&P/ASX 200 sector indices
+        "XFJ_AU", "XHJ_AU", "XIJ_AU", "XEJ_AU", "XMJ_AU",
+        "XTJ_AU", "XRJ_AU", "XUJ_AU", "XSJ_AU", "XDJ_AU", "XTL_AU",
+        # Sector ETFs for depth
+        "MVB_AU", "OZR_AU", "ATEC_AU", "QFN_AU", "DRUG_AU",
+        "FUEL_AU", "QRE_AU", "MVR_AU", "VAP_AU", "SLF_AU",
     ],
     "BR": [
-        "EWZ_US", "BOVA11_BR", "FIND11_BR", "MATB11_BR", "UTIL11_BR",
-        "TECB11_BR", "ENGI11_BR", "IFNC11_BR", "CSMO11_BR", "SAUD11_BR",
+        "FIND11_BR", "MATB11_BR", "UTIL11_BR", "TECB11_BR",
+        "ENGI11_BR", "IFNC11_BR", "CSMO11_BR", "SAUD11_BR",
+        "IMOB11_BR", "ICON11_BR", "TCOM11_BR",
+    ],
+    "CA": [
+        "XEG_CA", "XFN_CA", "XHC_CA", "XIN_CA", "XIT_CA",
+        "XMA_CA", "XRE_CA", "XST_CA", "XUT_CA", "XCD_CA", "XCM_CA",
+        # BMO ETFs for depth
+        "ZEB_CA", "ZEO_CA", "ZGD_CA", "ZRE_CA", "ZUT_CA",
+        "ZUH_CA", "ZIN_CA",
+    ],
+    "UK": [
+        # FTSE 350 sector indices
+        "FTSE_TECH_UK", "FTSE_FIN_UK", "FTSE_HC_UK",
+        "FTSE_CD_UK", "FTSE_CS_UK", "FTSE_EN_UK",
+        "FTSE_IND_UK", "FTSE_MAT_UK", "FTSE_RE_UK",
+        "FTSE_UT_UK", "FTSE_CM_UK",
+        # iShares STOXX Europe sector ETFs (LSE-listed)
+        "SXEP_UK", "SXFP_UK", "SXDP_UK", "SXNP_UK",
+        "SXAP_UK", "SXRP_UK", "SXOP_UK", "SXQP_UK",
+        "SX86P_UK", "SXKP_UK", "SX6P_UK",
+        "IUKP_UK",
+    ],
+    "DE": [
+        # CDAX sector indices
+        "CDAX_TECH_DE", "CDAX_FIN_DE", "CDAX_HC_DE",
+        "CDAX_CD_DE", "CDAX_CS_DE", "CDAX_EN_DE",
+        "CDAX_IND_DE", "CDAX_MAT_DE", "CDAX_RE_DE",
+        "CDAX_UT_DE", "CDAX_CM_DE",
+        # iShares STOXX Europe sector ETFs (XETRA-listed)
+        "SXEP_DE", "SXFP_DE", "SXDP_DE", "SXNP_DE",
+        "SXAP_DE", "SXRP_DE", "SXOP_DE", "SXQP_DE",
+        "SX86P_DE", "SXKP_DE", "SX6P_DE",
+        # Lyxor DAX sector ETFs
+        "LYXDAX_AUTO_DE", "LYXDAX_BNK_DE", "LYXDAX_CHM_DE",
+        "LYXDAX_IND_DE", "LYXDAX_INS_DE", "LYXDAX_TECH_DE",
+    ],
+    "FR": [
+        # CAC sector indices
+        "CAC_TECH_FR", "CAC_FIN_FR", "CAC_HC_FR",
+        "CAC_CD_FR", "CAC_CS_FR", "CAC_EN_FR",
+        "CAC_IND_FR", "CAC_MAT_FR", "CAC_RE_FR",
+        "CAC_UT_FR", "CAC_CM_FR",
+        # iShares STOXX Europe sector ETFs (Euronext-listed)
+        "SXEP_FR", "SXFP_FR", "SXDP_FR", "SXNP_FR",
+        "SXAP_FR", "SXRP_FR", "SXOP_FR", "SXQP_FR",
+        "SX86P_FR", "SXKP_FR", "SX6P_FR",
+        "AMUNDI_BNK_FR",
     ],
 }
 
