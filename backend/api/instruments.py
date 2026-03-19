@@ -201,7 +201,7 @@ async def get_instrument_rs(
 ) -> ApiResponse:
     """Return RS score history for an instrument.
 
-    Tries the database first. Falls back to mock RS scores if no real data.
+    Queries the database. Returns empty if no real data exists.
     """
     repo = InstrumentRepository(session)
     instrument = await repo.get_by_id(instrument_id)

@@ -10,7 +10,6 @@ import ErrorAlert from '@/components/common/ErrorAlert'
 import { useStockRankings } from '@/api/hooks/useRankings'
 import { useStockRRG } from '@/api/hooks/useRRG'
 import { useAddPosition } from '@/api/hooks/useBaskets'
-import { getMockStockRRGData } from '@/data/mockStockData'
 
 type ActionFilterGroup = 'ALL' | 'BUY' | 'HOLD' | 'SELL' | 'WATCH' | 'ACCUMULATE' | 'REDUCE' | 'AVOID'
 
@@ -46,7 +45,7 @@ export default function StockSelection(): JSX.Element {
   const { data: rrgApiData, isLoading: rrgLoading } = useStockRRG(code, sector)
 
   const stocks: RankingItem[] = Array.isArray(stockData) ? stockData : []
-  const rrgData = rrgApiData ?? (stocks.length > 0 ? getMockStockRRGData() : [])
+  const rrgData = rrgApiData ?? []
 
   const [actionFilter, setActionFilter] = useState<ActionFilterGroup>('ALL')
   const [rsMinimum, setRsMinimum] = useState(0)

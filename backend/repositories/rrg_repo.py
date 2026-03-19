@@ -1,14 +1,12 @@
 """RRG repository -- scatter plot data with trailing tails.
 
-Queries real rs_scores for trailing tail data. Falls back to deterministic
-mock data if the DB has no data.
+Queries real rs_scores for trailing tail data. Returns empty list if
+no real data exists — never generates mock/fake scores.
 """
 from __future__ import annotations
 
-import hashlib
 import logging
-import math
-from datetime import date, timedelta
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import select, func
@@ -18,97 +16,31 @@ from db.models import Instrument, RSScore
 from repositories.instrument_repo import InstrumentRepository
 from repositories.ranking_repo import (
     CANONICAL_COUNTRY_INDICES, CANONICAL_SECTORS, CANONICAL_GLOBAL_SECTORS,
+    _resolve_action,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _seed_float(instrument_id: str, salt: str = "") -> float:
-    """Return a deterministic float in [0, 1) based on instrument ID and salt."""
-    digest = hashlib.md5((instrument_id + salt).encode()).hexdigest()
-    return int(digest[:8], 16) / 0xFFFFFFFF
-
-
-def _determine_quadrant(score: float, momentum: float) -> str:
-    """Assign RRG quadrant based on score and momentum thresholds."""
-    if score > 50 and momentum > 0:
-        return "LEADING"
-    if score > 50 and momentum <= 0:
-        return "WEAKENING"
-    if score <= 50 and momentum <= 0:
-        return "LAGGING"
-    return "IMPROVING"
-
-
-def _generate_trail(
-    instrument_id: str,
-    current_score: float,
-    current_momentum: float,
-    weeks: int = 8,
-) -> list[dict[str, Any]]:
-    """Generate an 8-week trailing tail with realistic rotation patterns."""
-    trail: list[dict[str, Any]] = []
-    today = date(2026, 3, 17)
-
-    phase = _seed_float(instrument_id, "phase") * 2 * math.pi
-    speed = 0.15 + _seed_float(instrument_id, "speed") * 0.25
-
-    for week_offset in range(weeks):
-        t = week_offset * speed
-        score_offset = math.sin(phase + t) * 8
-        momentum_offset = math.cos(phase + t) * 6
-
-        trail_score = round(current_score - score_offset, 2)
-        trail_momentum = round(current_momentum - momentum_offset, 2)
-        trail_date = today - timedelta(weeks=week_offset)
-
-        trail.append({
-            "date": trail_date,
-            "rs_score": trail_score,
-            "rs_momentum": trail_momentum,
-        })
-
-    trail.reverse()
-    return trail
-
-
-def _build_rrg_point(instrument: dict[str, Any]) -> dict[str, Any]:
-    """Build a full RRG data point with trail for an instrument (mock)."""
-    iid = instrument["id"]
-
-    raw = _seed_float(iid, "score")
-    score = round(20 + raw * 70, 2)
-
-    mom_raw = _seed_float(iid, "momentum")
-    momentum = round(-30 + mom_raw * 60, 2)
-
-    action = _determine_quadrant(score, momentum)
-
-    trail = _generate_trail(iid, score, momentum)
-
-    return {
-        "id": iid,
-        "name": instrument["name"],
-        "rs_score": score,
-        "rs_momentum": momentum,
-        "action": action,
-        "trail": trail,
-    }
 
 
 def _build_rrg_from_db(
     instrument: Instrument,
     scores: list[RSScore],
 ) -> dict[str, Any]:
-    """Build RRG data point from real DB scores with trailing tail.
-
-    If fewer than 8 data points exist, pads the trail using the
-    same rotation simulation used by the mock generator.
-    """
+    """Build RRG data point from real DB scores with trailing tail."""
     latest = scores[0]  # most recent
     rs_score = float(latest.adjusted_rs_score) if latest.adjusted_rs_score is not None else 50.0
     rs_momentum = float(latest.rs_momentum) if latest.rs_momentum is not None else 0.0
-    action = latest.quadrant or "WATCH"
+    raw_quadrant = latest.quadrant or "WATCH"
+    action = _resolve_action(raw_quadrant, rs_score)
+
+    # Volume character
+    vol_ratio = float(latest.volume_ratio) if latest.volume_ratio is not None else 1.0
+    if vol_ratio >= 1.3:
+        volume_character = "ACCUMULATION"
+    elif vol_ratio <= 0.7:
+        volume_character = "DISTRIBUTION"
+    else:
+        volume_character = "NEUTRAL"
 
     # Build trail from historical scores (weekly samples)
     trail: list[dict[str, Any]] = []
@@ -121,16 +53,13 @@ def _build_rrg_from_db(
 
     trail.reverse()  # oldest first
 
-    # Pad to 8 entries if needed using synthetic rotation
-    if len(trail) < 8:
-        trail = _generate_trail(instrument.id, rs_score, rs_momentum, weeks=8)
-
     return {
         "id": instrument.id,
         "name": instrument.name,
         "rs_score": rs_score,
         "rs_momentum": rs_momentum,
         "action": action,
+        "volume_character": volume_character,
         "trail": trail,
     }
 
@@ -139,30 +68,25 @@ class RRGRepository:
     """Repository for RRG scatter plot data with trailing tails."""
 
     def __init__(self, session: AsyncSession | None = None) -> None:
-        """Initialize with an instrument repository for data access."""
         self._session = session
         self._instrument_repo = InstrumentRepository(session)
 
-    async def _try_db_rrg(
+    async def _get_rrg_by_filters(
         self,
         hierarchy_level: int | None = None,
         country: str | None = None,
-        asset_type: str | None = None,
         asset_types: tuple[str, ...] | None = None,
         sector: str | None = None,
-    ) -> list[dict[str, Any]] | None:
-        """Try to get RRG data from the database. Returns None if no data."""
+    ) -> list[dict[str, Any]]:
+        """Get RRG data from DB by instrument filters. Returns empty list if no data."""
         if self._session is None:
-            return None
+            return []
         try:
-            # Get instruments matching the criteria
             inst_stmt = select(Instrument).where(Instrument.is_active == True)
             if hierarchy_level is not None:
                 inst_stmt = inst_stmt.where(Instrument.hierarchy_level == hierarchy_level)
             if country is not None:
                 inst_stmt = inst_stmt.where(Instrument.country == country)
-            if asset_type is not None:
-                inst_stmt = inst_stmt.where(Instrument.asset_type == asset_type)
             if asset_types is not None:
                 inst_stmt = inst_stmt.where(Instrument.asset_type.in_(asset_types))
             if sector is not None:
@@ -171,16 +95,14 @@ class RRGRepository:
             inst_result = await self._session.execute(inst_stmt)
             instruments = inst_result.scalars().all()
             if not instruments:
-                return None
+                return []
 
-            # Get trailing weekly scores (last 8 weeks of data)
-            # Use every 5th trading day as weekly proxy
             max_date_result = await self._session.execute(
                 select(func.max(RSScore.date))
             )
             max_date = max_date_result.scalar()
             if max_date is None:
-                return None
+                return []
 
             cutoff = max_date - timedelta(days=60)  # ~8 weeks
 
@@ -197,27 +119,24 @@ class RRGRepository:
                 if not scores:
                     continue
 
-                # Sample weekly (every 5th record)
                 weekly_scores = scores[::5][:8]
                 if not weekly_scores:
                     continue
 
                 results.append(_build_rrg_from_db(inst, weekly_scores))
 
-            if not results:
-                return None
             return results
 
         except Exception as e:
             logger.debug("DB RRG query failed: %s", e)
-            return None
+            return []
 
-    async def _try_db_rrg_by_ids(
+    async def _get_rrg_by_ids(
         self, instrument_ids: list[str],
-    ) -> list[dict[str, Any]] | None:
-        """Get RRG data for a specific set of instrument IDs from the DB."""
+    ) -> list[dict[str, Any]]:
+        """Get RRG data for specific instrument IDs from DB."""
         if self._session is None:
-            return None
+            return []
         try:
             inst_stmt = (
                 select(Instrument)
@@ -227,14 +146,14 @@ class RRGRepository:
             inst_result = await self._session.execute(inst_stmt)
             instruments = inst_result.scalars().all()
             if not instruments:
-                return None
+                return []
 
             max_date_result = await self._session.execute(
                 select(func.max(RSScore.date))
             )
             max_date = max_date_result.scalar()
             if max_date is None:
-                return None
+                return []
 
             cutoff = max_date - timedelta(days=60)
             results = []
@@ -254,67 +173,31 @@ class RRGRepository:
                     continue
                 results.append(_build_rrg_from_db(inst, weekly_scores))
 
-            if not results:
-                return None
             return results
         except Exception as e:
             logger.debug("DB RRG by IDs query failed: %s", e)
-            return None
+            return []
 
     async def get_country_rrg(self) -> list[dict[str, Any]]:
         """Return RRG data for canonical country indices."""
-        db_result = await self._try_db_rrg_by_ids(CANONICAL_COUNTRY_INDICES)
-        if db_result is not None:
-            return db_result
-
-        all_instruments = await self._instrument_repo.get_all()
-        country_indices = [
-            i for i in all_instruments if i["id"] in CANONICAL_COUNTRY_INDICES
-        ]
-        return [_build_rrg_point(i) for i in country_indices]
+        return await self._get_rrg_by_ids(CANONICAL_COUNTRY_INDICES)
 
     async def get_sector_rrg(self, country_code: str) -> list[dict[str, Any]]:
-        """Return RRG data for canonical sectors within a specific country."""
+        """Return RRG data for sectors within a country."""
         canonical_ids = CANONICAL_SECTORS.get(country_code)
-
         if canonical_ids is not None:
-            # Use canonical whitelist
-            db_result = await self._try_db_rrg_by_ids(canonical_ids)
-            if db_result is not None:
-                return db_result
-            all_instruments = await self._instrument_repo.get_all()
-            instruments = [i for i in all_instruments if i["id"] in canonical_ids]
-            return [_build_rrg_point(i) for i in instruments]
+            return await self._get_rrg_by_ids(canonical_ids)
 
-        # Non-canonical countries: filter by asset type
-        db_result = await self._try_db_rrg(
-            hierarchy_level=2, country=country_code,
+        return await self._get_rrg_by_filters(
+            country=country_code,
             asset_types=("sector_etf", "sector_index"),
         )
-        if db_result is not None:
-            return db_result
-
-        instruments = await self._instrument_repo.get_by_country(country_code)
-        sectors = [
-            i for i in instruments
-            if i.get("hierarchy_level") == 2
-            and i.get("asset_type") in ("sector_etf", "sector_index")
-        ]
-        return [_build_rrg_point(i) for i in sectors]
 
     async def get_stock_rrg(
-        self, country_code: str, sector: str
+        self, country_code: str, sector: str,
     ) -> list[dict[str, Any]]:
-        """Return RRG data for stocks in a country+sector combination."""
-        db_result = await self._try_db_rrg(
-            hierarchy_level=3, country=country_code, sector=sector
+        """Return RRG data for stocks in a country+sector."""
+        return await self._get_rrg_by_filters(
+            country=country_code, sector=sector,
+            asset_types=("stock",),
         )
-        if db_result is not None:
-            return db_result
-
-        instruments = await self._instrument_repo.get_by_country(country_code)
-        stocks = [
-            i for i in instruments
-            if i.get("hierarchy_level") == 3 and i.get("sector") == sector
-        ]
-        return [_build_rrg_point(i) for i in stocks]
