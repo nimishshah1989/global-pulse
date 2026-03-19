@@ -1,5 +1,5 @@
 export type Action = 'BUY' | 'HOLD_DIVERGENCE' | 'HOLD_FADING' | 'REDUCE' | 'SELL' | 'WATCH' | 'ACCUMULATE' | 'AVOID'
-export type PriceTrend = 'OUTPERFORMING' | 'UNDERPERFORMING'
+export type PriceTrend = 'OUTPERFORMING' | 'UNDERPERFORMING' | 'RECOVERING' | 'CONSOLIDATING'
 export type MomentumTrend = 'ACCELERATING' | 'DECELERATING'
 export type VolumeCharacter = 'ACCUMULATION' | 'DISTRIBUTION' | 'NEUTRAL'
 export type Regime = 'RISK_ON' | 'RISK_OFF'

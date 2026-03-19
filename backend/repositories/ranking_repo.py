@@ -36,6 +36,13 @@ CANONICAL_SECTORS: dict[str, list[str]] = {
     "HK": [
         "HSTECH_HK", "HSFI_HK", "HSPI_HK", "HSUI_HK",
         "2800_HK", "3067_HK", "3033_HK",
+        # China/HK sector ETFs (US-listed, track Greater China sectors)
+        "CHIQ_US", "KURE_US", "CHII_US", "CHIE_US",
+        "CHIM_US", "KWEB_US", "CHIS_US", "CHIR_US",
+    ],
+    "BR": [
+        "EWZ_US", "BOVA11_BR", "FIND11_BR", "MATB11_BR", "UTIL11_BR",
+        "TECB11_BR", "ENGI11_BR", "IFNC11_BR", "CSMO11_BR", "SAUD11_BR",
     ],
 }
 
@@ -100,14 +107,27 @@ def _rs_score_to_v2_dict(score: RSScore, inst: Instrument) -> dict[str, Any]:
     action = _resolve_action(raw_quadrant, adjusted)
     rs_line = float(score.rs_line) if score.rs_line is not None else None
     rs_ma = float(score.rs_ma_150) if score.rs_ma_150 is not None else None
-    price_trend = score.rs_trend or "UNDERPERFORMING"
+    raw_trend = score.rs_trend or "UNDERPERFORMING"
 
-    # Volume character from volume_ratio field (1.0=ACCUMULATION, 0.0=DISTRIBUTION)
-    vol_ratio = float(score.volume_ratio) if score.volume_ratio is not None else 0.5
-    if vol_ratio > 1.0:
-        volume_character = "ACCUMULATION"
+    # Override trend when score contradicts it — avoid misleading signals
+    # A weak score (<40) should not show OUTPERFORMING; a strong score (>60) should not
+    # show UNDERPERFORMING, because the trend label alone creates false confidence/fear.
+    if adjusted < 40 and raw_trend == "OUTPERFORMING":
+        price_trend = "RECOVERING"  # Technically above MA but still weak overall
+    elif adjusted > 60 and raw_trend == "UNDERPERFORMING":
+        price_trend = "CONSOLIDATING"  # Technically below MA but still strong overall
     else:
-        volume_character = "DISTRIBUTION"
+        price_trend = raw_trend
+
+    # Volume character from volume_ratio (SMA20/SMA100 of volume)
+    # Use meaningful thresholds, not just above/below 1.0
+    vol_ratio = float(score.volume_ratio) if score.volume_ratio is not None else 1.0
+    if vol_ratio >= 1.3:
+        volume_character = "ACCUMULATION"  # Meaningful volume increase
+    elif vol_ratio <= 0.7:
+        volume_character = "DISTRIBUTION"  # Meaningful volume decrease
+    else:
+        volume_character = "NEUTRAL"  # Normal range — don't read into it
 
     # Momentum trend from sign
     momentum_trend = "ACCELERATING" if momentum > 0 else "DECELERATING"
@@ -311,14 +331,19 @@ class RankingRepository:
                 .where(*conditions)
             )
 
-            if action_filter:
-                stmt = stmt.where(RSScore.quadrant == action_filter)
-
-            stmt = stmt.order_by(RSScore.adjusted_rs_score.desc()).limit(limit)
+            # Fetch more rows when filtering by action since the filter is post-query
+            fetch_limit = limit * 3 if action_filter else limit
+            stmt = stmt.order_by(RSScore.adjusted_rs_score.desc()).limit(fetch_limit)
 
             result = await self._session.execute(stmt)
             rows = result.all()
-            return [_rs_score_to_v2_dict(score, inst) for inst, score in rows]
+            items = [_rs_score_to_v2_dict(score, inst) for inst, score in rows]
+
+            # Action is computed from quadrant + score, so filter post-conversion
+            if action_filter:
+                items = [i for i in items if i["action"] == action_filter]
+
+            return items[:limit]
         except Exception as e:
             logger.debug("Top ETFs query failed: %s", e)
             return []

@@ -31,17 +31,7 @@ function matchesActionFilter(action: Action, filter: ActionFilterGroup): boolean
   return action === filter
 }
 
-function getTrendArrow(trend: string | null): string {
-  if (trend === 'OUTPERFORMING' || trend === 'ACCELERATING') return '\u25B2'
-  if (trend === 'UNDERPERFORMING' || trend === 'DECELERATING') return '\u25BC'
-  return '\u2014'
-}
-
-function getTrendColor(trend: string | null): string {
-  if (trend === 'OUTPERFORMING' || trend === 'ACCELERATING') return 'text-emerald-600'
-  if (trend === 'UNDERPERFORMING' || trend === 'DECELERATING') return 'text-red-600'
-  return 'text-slate-400'
-}
+import { getTrendArrow, getTrendColor, getVolumeColor } from '@/utils/trend'
 
 export default function StockSelection(): JSX.Element {
   const { countryCode, sectorSlug } = useParams<{
@@ -243,8 +233,5 @@ function MomentumCell({ value, trend }: { value: number | null; trend: string | 
 }
 
 function VolumeCell({ character }: { character: string | null }): JSX.Element {
-  const color = character === 'ACCUMULATION' ? 'text-emerald-600'
-    : character === 'DISTRIBUTION' ? 'text-red-500'
-    : 'text-slate-500'
-  return <span className={`text-xs font-medium ${color}`}>{character ?? '--'}</span>
+  return <span className={`text-xs font-medium ${getVolumeColor(character)}`}>{character ?? '--'}</span>
 }

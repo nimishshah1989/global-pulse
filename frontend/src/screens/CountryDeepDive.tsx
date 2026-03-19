@@ -40,17 +40,7 @@ const FILTER_COLORS: Record<ActionFilterGroup, { active: string; inactive: strin
   AVOID: { active: 'bg-slate-600 text-white', inactive: 'bg-white text-slate-600 border-slate-200' },
 }
 
-function getTrendArrow(trend: string | null): string {
-  if (trend === 'OUTPERFORMING' || trend === 'ACCELERATING') return '\u25B2'
-  if (trend === 'UNDERPERFORMING' || trend === 'DECELERATING') return '\u25BC'
-  return '\u2014'
-}
-
-function getTrendColor(trend: string | null): string {
-  if (trend === 'OUTPERFORMING' || trend === 'ACCELERATING') return 'text-emerald-600'
-  if (trend === 'UNDERPERFORMING' || trend === 'DECELERATING') return 'text-red-600'
-  return 'text-slate-400'
-}
+import { getTrendArrow, getTrendColor, getVolumeColor } from '@/utils/trend'
 
 export default function CountryDeepDive(): JSX.Element {
   const { countryCode } = useParams<{ countryCode: string }>()
@@ -206,16 +196,28 @@ export default function CountryDeepDive(): JSX.Element {
             Click a sector card or table row to view its RS line.
           </p>
           {selectedSectorId && (
-            <button
-              onClick={() => {
-                const sector = sectors.find((s) => s.instrument_id === selectedSectorId)
-                const slug = sector?.sector ?? selectedSectorId
-                navigate(`/compass/country/${code}/sector/${slug}`)
-              }}
-              className="rounded-lg bg-primary-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 transition-colors"
-            >
-              View Stocks in {displaySectorName} &rarr;
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  const sector = sectors.find((s) => s.instrument_id === selectedSectorId)
+                  const slug = sector?.sector ?? selectedSectorId
+                  navigate(`/compass/etfs?country=${code}&sector=${encodeURIComponent(slug)}`)
+                }}
+                className="rounded-lg bg-primary-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 transition-colors"
+              >
+                View ETFs in {displaySectorName} &rarr;
+              </button>
+              <button
+                onClick={() => {
+                  const sector = sectors.find((s) => s.instrument_id === selectedSectorId)
+                  const slug = sector?.sector ?? selectedSectorId
+                  navigate(`/compass/country/${code}/sector/${slug}`)
+                }}
+                className="rounded-lg border border-slate-200 px-4 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                View Stocks &rarr;
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -267,9 +269,7 @@ function SectorCard({ sector, isSelected, onClick }: {
         </span>
         <span>
           Vol: <span className={`font-mono font-medium ${
-            sector.volume_character === 'ACCUMULATION' ? 'text-emerald-600'
-              : sector.volume_character === 'DISTRIBUTION' ? 'text-red-500'
-              : 'text-slate-500'
+            getVolumeColor(sector.volume_character)
           }`}>
             {sector.volume_character ?? '--'}
           </span>

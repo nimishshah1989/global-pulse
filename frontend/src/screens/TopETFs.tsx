@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import ActionBadge from '@/components/common/QuadrantBadge'
 import LoadingSkeleton from '@/components/common/LoadingSkeleton'
 import ErrorAlert from '@/components/common/ErrorAlert'
@@ -51,17 +52,7 @@ const SECTOR_OPTIONS: { value: string; label: string }[] = [
   { value: 'communication', label: 'Communication' },
 ]
 
-function getTrendArrow(trend: string | null): string {
-  if (trend === 'OUTPERFORMING') return '\u25B2'
-  if (trend === 'UNDERPERFORMING') return '\u25BC'
-  return '\u2014'
-}
-
-function getTrendColor(trend: string | null): string {
-  if (trend === 'OUTPERFORMING') return 'text-emerald-600'
-  if (trend === 'UNDERPERFORMING') return 'text-red-600'
-  return 'text-slate-400'
-}
+import { getTrendArrow, getTrendColor, getVolumeColor } from '@/utils/trend'
 
 function getRowBg(action: Action): string {
   if (action === 'BUY') return 'bg-emerald-50/40'
@@ -70,10 +61,21 @@ function getRowBg(action: Action): string {
 }
 
 export default function TopETFs(): JSX.Element {
-  const [actionFilter, setActionFilter] = useState('')
-  const [countryFilter, setCountryFilter] = useState('')
-  const [sectorFilter, setSectorFilter] = useState('')
+  const [searchParams] = useSearchParams()
+  const [actionFilter, setActionFilter] = useState(searchParams.get('action') ?? '')
+  const [countryFilter, setCountryFilter] = useState(searchParams.get('country') ?? '')
+  const [sectorFilter, setSectorFilter] = useState(searchParams.get('sector') ?? '')
   const [basketModalItem, setBasketModalItem] = useState<RankingItem | null>(null)
+
+  // Sync filters from URL params on navigation
+  useEffect(() => {
+    const a = searchParams.get('action') ?? ''
+    const c = searchParams.get('country') ?? ''
+    const s = searchParams.get('sector') ?? ''
+    if (a) setActionFilter(a)
+    if (c) setCountryFilter(c)
+    if (s) setSectorFilter(s)
+  }, [searchParams])
 
   const { data: etfData, isLoading, error, refetch } = useTopETFs(
     actionFilter || undefined,
@@ -265,8 +267,5 @@ function MomentumCell({ value, trend }: { value: number | null; trend: string | 
 }
 
 function VolumeCell({ character }: { character: string | null }): JSX.Element {
-  const color = character === 'ACCUMULATION' ? 'text-emerald-600'
-    : character === 'DISTRIBUTION' ? 'text-red-500'
-    : 'text-slate-500'
-  return <span className={`text-xs font-medium ${color}`}>{character ?? '--'}</span>
+  return <span className={`text-xs font-medium ${getVolumeColor(character)}`}>{character ?? '--'}</span>
 }

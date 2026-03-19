@@ -7,6 +7,7 @@ import {
   createColumnHelper,
   type SortingState,
 } from '@tanstack/react-table'
+import { getTrendColor, getVolumeColor } from '@/utils/trend'
 import type { RankingItem } from '@/types/rs'
 import { QuadrantBadge } from '@/components/common/QuadrantBadge'
 
@@ -81,11 +82,7 @@ export default function StockRankingTable({
         cell: (info) => {
           const val = info.getValue()
           if (!val) return <span className="text-slate-400">-</span>
-          const color =
-            val === 'ACCUMULATION' ? 'text-emerald-600' :
-            val === 'DISTRIBUTION' ? 'text-red-600' :
-            'text-slate-500'
-          return <span className={`text-xs font-medium ${color}`}>{val}</span>
+          return <span className={`text-xs font-medium ${getVolumeColor(val)}`}>{val}</span>
         },
         sortingFn: 'alphanumeric',
       }),
@@ -94,8 +91,7 @@ export default function StockRankingTable({
         cell: (info) => {
           const val = info.getValue()
           if (!val) return <span className="text-slate-400">-</span>
-          const color = val === 'OUTPERFORMING' ? 'text-emerald-600' : 'text-red-600'
-          return <span className={`text-xs font-medium ${color}`}>{val}</span>
+          return <span className={`text-xs font-medium ${getTrendColor(val)}`}>{val}</span>
         },
         sortingFn: 'alphanumeric',
       }),

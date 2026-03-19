@@ -11,6 +11,7 @@ import { useRegime } from '@/api/hooks/useRegime'
 import { useMatrix } from '@/api/hooks/useMatrix'
 import type { MatrixData } from '@/api/hooks/useMatrix'
 import { COUNTRY_FLAGS, COUNTRY_NAMES } from '@/data/mockCountryData'
+import { getTrendLabel, getTrendLabelShort, getTrendColor, getVolumeColor } from '@/utils/trend'
 import type { RankingItem, Action } from '@/types/rs'
 
 /* ---------- Action color helpers ---------- */
@@ -90,8 +91,8 @@ function SectorRow({ sector, isExpanded, onToggle }: {
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">Price Trend</span>
-              <span className={`font-medium ${sector.price_trend === 'OUTPERFORMING' ? 'text-emerald-600' : 'text-red-600'}`}>
-                {sector.price_trend === 'OUTPERFORMING' ? '\u25B2 Out' : '\u25BC Under'}
+              <span className={`font-medium ${getTrendColor(sector.price_trend)}`}>
+                {getTrendLabelShort(sector.price_trend)}
               </span>
             </div>
             <div className="flex justify-between">
@@ -102,7 +103,7 @@ function SectorRow({ sector, isExpanded, onToggle }: {
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">Volume</span>
-              <span className={`font-medium ${sector.volume_character === 'ACCUMULATION' ? 'text-emerald-600' : sector.volume_character === 'DISTRIBUTION' ? 'text-red-500' : 'text-slate-500'}`}>
+              <span className={`font-medium ${getVolumeColor(sector.volume_character)}`}>
                 {sector.volume_character ?? '--'}
               </span>
             </div>
@@ -184,8 +185,8 @@ function CountryCard({ item, isExpanded, onToggle, onDeepDive }: {
             </div>
             <div>
               <span className="text-slate-500">Price Trend</span>
-              <p className={`font-medium ${item.price_trend === 'OUTPERFORMING' ? 'text-emerald-600' : 'text-red-600'}`}>
-                {item.price_trend === 'OUTPERFORMING' ? '\u25B2 Outperforming' : '\u25BC Underperforming'}
+              <p className={`font-medium ${getTrendColor(item.price_trend)}`}>
+                {getTrendLabel(item.price_trend)}
               </p>
             </div>
             <div>
@@ -196,19 +197,19 @@ function CountryCard({ item, isExpanded, onToggle, onDeepDive }: {
             </div>
             <div>
               <span className="text-slate-500">Volume</span>
-              <p className={`font-medium ${item.volume_character === 'ACCUMULATION' ? 'text-emerald-600' : item.volume_character === 'DISTRIBUTION' ? 'text-red-500' : 'text-slate-500'}`}>
+              <p className={`font-medium ${getVolumeColor(item.volume_character)}`}>
                 {item.volume_character ?? '--'}
               </p>
             </div>
           </div>
 
-          {/* Deep dive link */}
-          <div className="mb-3 flex justify-end">
+          {/* Navigation links */}
+          <div className="mb-3 flex justify-end gap-2">
             <button
               onClick={() => onDeepDive(code)}
               className="rounded-lg bg-primary-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 transition-colors"
             >
-              Deep Dive &rarr;
+              Sector Deep Dive &rarr;
             </button>
           </div>
 

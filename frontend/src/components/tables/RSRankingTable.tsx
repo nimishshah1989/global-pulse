@@ -49,6 +49,26 @@ function TrendArrow({ trend }: { trend: PriceTrend | null }): JSX.Element {
       </span>
     )
   }
+  if (trend === 'RECOVERING') {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <svg className="h-4 w-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+        </svg>
+        <span className="text-xs text-amber-600 font-medium">Recov</span>
+      </span>
+    )
+  }
+  if (trend === 'CONSOLIDATING') {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+        <span className="text-xs text-blue-600 font-medium">Consol</span>
+      </span>
+    )
+  }
   return <span className="text-xs text-slate-400">--</span>
 }
 

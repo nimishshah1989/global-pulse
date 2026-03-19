@@ -8,6 +8,7 @@ import {
 } from 'react-simple-maps'
 // No navigation — map is display-only, drill-down is via country cards
 import { scaleSequential, interpolateRdYlGn } from 'd3'
+import { getTrendColor, getVolumeColor } from '@/utils/trend'
 import type { RankingItem } from '@/types/rs'
 
 const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
@@ -234,19 +235,16 @@ function WorldChoroplethInner({ data, onCountryClick }: WorldChoroplethProps): J
           </p>
           <p className="text-xs text-slate-600">
             Trend:{' '}
-            <span
-              className={`font-medium ${
-                tooltip.priceTrend === 'OUTPERFORMING'
-                  ? 'text-emerald-600'
-                  : 'text-red-600'
-              }`}
-            >
+            <span className={`font-medium ${getTrendColor(tooltip.priceTrend)}`}>
               {tooltip.priceTrend ?? '-'}
             </span>
           </p>
           {tooltip.volumeCharacter && (
             <p className="text-xs text-slate-600">
-              Volume: {tooltip.volumeCharacter}
+              Volume:{' '}
+              <span className={`font-medium ${getVolumeColor(tooltip.volumeCharacter)}`}>
+                {tooltip.volumeCharacter}
+              </span>
             </p>
           )}
         </div>
