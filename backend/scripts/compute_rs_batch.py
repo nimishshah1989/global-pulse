@@ -68,48 +68,56 @@ def load_csv(csv_path: Path) -> pl.DataFrame | None:
 
 async def load_prices_from_db(
     instrument_ids: list[str],
+    batch_size: int = 500,
 ) -> dict[str, pl.DataFrame]:
-    """Load OHLCV from PostgreSQL prices table into Polars DataFrames."""
+    """Load OHLCV from PostgreSQL prices table into Polars DataFrames.
+
+    Loads in batches to avoid memory spikes with large instrument sets.
+    """
     factory = get_session_factory()
     price_data: dict[str, pl.DataFrame] = {}
 
-    async with factory() as session:
-        result = await session.execute(
-            text("""
-                SELECT instrument_id, date, open, high, low, close, volume
-                FROM prices
-                WHERE instrument_id = ANY(:ids)
-                ORDER BY instrument_id, date
-            """),
-            {"ids": instrument_ids},
+    for i in range(0, len(instrument_ids), batch_size):
+        batch_ids = instrument_ids[i:i + batch_size]
+        async with factory() as session:
+            result = await session.execute(
+                text("""
+                    SELECT instrument_id, date, open, high, low, close, volume
+                    FROM prices
+                    WHERE instrument_id = ANY(:ids)
+                    ORDER BY instrument_id, date
+                """),
+                {"ids": batch_ids},
+            )
+            rows = result.fetchall()
+
+        if not rows:
+            continue
+
+        all_df = pl.DataFrame(
+            {
+                "instrument_id": [r[0] for r in rows],
+                "date": [r[1] for r in rows],
+                "open": [float(r[2]) if r[2] is not None else None for r in rows],
+                "high": [float(r[3]) if r[3] is not None else None for r in rows],
+                "low": [float(r[4]) if r[4] is not None else None for r in rows],
+                "close": [float(r[5]) if r[5] is not None else None for r in rows],
+                "volume": [float(r[6]) if r[6] is not None else None for r in rows],
+            }
         )
-        rows = result.fetchall()
 
-    if not rows:
-        return price_data
+        for iid in all_df["instrument_id"].unique().to_list():
+            df = (
+                all_df.filter(pl.col("instrument_id") == iid)
+                .drop("instrument_id")
+                .sort("date")
+                .drop_nulls(subset=["close"])
+            )
+            if df.height >= 20:
+                price_data[iid] = df
 
-    # Build a single Polars DataFrame and split by instrument
-    all_df = pl.DataFrame(
-        {
-            "instrument_id": [r[0] for r in rows],
-            "date": [r[1] for r in rows],
-            "open": [float(r[2]) if r[2] is not None else None for r in rows],
-            "high": [float(r[3]) if r[3] is not None else None for r in rows],
-            "low": [float(r[4]) if r[4] is not None else None for r in rows],
-            "close": [float(r[5]) if r[5] is not None else None for r in rows],
-            "volume": [float(r[6]) if r[6] is not None else None for r in rows],
-        }
-    )
-
-    for iid in all_df["instrument_id"].unique().to_list():
-        df = (
-            all_df.filter(pl.col("instrument_id") == iid)
-            .drop("instrument_id")
-            .sort("date")
-            .drop_nulls(subset=["close"])
-        )
-        if df.height >= 20:
-            price_data[iid] = df
+        if (i + batch_size) % 2000 == 0:
+            logger.info("  Loaded prices for %d/%d instruments...", len(price_data), len(instrument_ids))
 
     return price_data
 
@@ -166,29 +174,36 @@ async def main() -> None:
     """Batch compute RS scores using optimized peer group approach."""
     logger.info("=== Batch RS Computation (Optimized) ===")
 
-    # Load instruments (Level 1-2 only)
-    with open(INSTRUMENT_MAP_PATH) as f:
-        all_instruments = json.load(f)
-    instruments = [i for i in all_instruments if i.get("hierarchy_level", 0) in (1, 2)]
+    # Load instruments from DB (Level 1-2: country indices + ETFs)
+    factory = get_session_factory()
+    async with factory() as session:
+        result = await session.execute(
+            text("""
+                SELECT id, name, ticker_stooq, source, asset_type, country,
+                       sector, hierarchy_level, benchmark_id, currency,
+                       liquidity_tier, is_active
+                FROM instruments
+                WHERE hierarchy_level IN (1, 2) AND is_active = true
+                ORDER BY hierarchy_level, country, id
+            """)
+        )
+        rows = result.fetchall()
 
-    # Load price data — try database first, fall back to CSVs
+    instruments = []
+    for r in rows:
+        instruments.append({
+            "id": r[0], "name": r[1], "ticker_stooq": r[2],
+            "source": r[3], "asset_type": r[4], "country": r[5],
+            "sector": r[6], "hierarchy_level": r[7],
+            "benchmark_id": r[8], "currency": r[9],
+            "liquidity_tier": r[10], "is_active": r[11],
+        })
+    logger.info("Loaded %d instruments from DB", len(instruments))
+
+    # Load price data from database
     instrument_ids = [i["id"] for i in instruments]
     price_data = await load_prices_from_db(instrument_ids)
-    logger.info("Loaded %d instruments from database", len(price_data))
-
-    # Fall back to CSV files for any instruments not in DB
-    if len(price_data) < len(instruments):
-        available_csvs = {p.stem: p for p in FETCHED_DIR.glob("*.csv")}
-        csv_count = 0
-        for inst in instruments:
-            iid = inst["id"]
-            if iid not in price_data and iid in available_csvs:
-                df = load_csv(available_csvs[iid])
-                if df is not None:
-                    price_data[iid] = df
-                    csv_count += 1
-        if csv_count:
-            logger.info("Loaded %d additional instruments from CSV files", csv_count)
+    logger.info("Loaded price data for %d instruments", len(price_data))
 
     instruments_with_data = [i for i in instruments if i["id"] in price_data]
     logger.info("Instruments with data: %d", len(instruments_with_data))
@@ -477,7 +492,7 @@ async def main() -> None:
                         "conviction": float(sig["conviction_score"]),
                         "description": sig["description"],
                         "metadata": json.dumps(clean_meta),
-                        "created_at": datetime.now(tz=timezone.utc),
+                        "created_at": datetime.utcnow(),
                     },
                 )
             await session.commit()

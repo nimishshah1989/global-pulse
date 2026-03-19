@@ -547,7 +547,8 @@ class RankingRepository:
             if action_filter:
                 items = [i for i in items if i["action"] == action_filter]
 
-            return items[:limit]
+            items = items[:limit]
+            return await self._enrich_with_returns(items)
         except Exception as e:
             logger.debug("Top ETFs query failed: %s", e)
             return []
