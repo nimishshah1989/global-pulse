@@ -15,7 +15,9 @@ echo "=== Global Pulse — Server Setup ==="
 if [ -d "$APP_DIR" ]; then
     echo "App directory exists, pulling latest..."
     cd "$APP_DIR"
-    git pull origin main
+    git fetch origin
+    git checkout claude/review-and-plan-architecture-6aWr1 2>/dev/null || true
+    git pull origin claude/review-and-plan-architecture-6aWr1
 else
     echo "Cloning repository..."
     git clone "$REPO_URL" "$APP_DIR"
@@ -61,17 +63,23 @@ sleep 25
 echo "=== Container Status ==="
 docker compose ps
 
+# 4.5 Seed DB and compute RS scores
+echo "Seeding database..."
+docker compose exec -T backend python scripts/seed_db.py 2>/dev/null || echo "Seeding skipped (may already be seeded)"
+echo "Computing RS scores..."
+docker compose exec -T backend python -m scripts.compute_rs_batch 2>/dev/null || echo "RS computation skipped"
+
 # 5. Health check
 echo ""
 echo "=== Health Check ==="
-if curl -sf http://localhost:8009/health; then
+if curl -sf http://localhost:8011/health; then
     echo ""
     echo "Backend: HEALTHY"
 else
     echo "Backend: UNHEALTHY — check logs with: docker compose logs backend"
 fi
 
-if curl -sf http://localhost:8109/ > /dev/null; then
+if curl -sf http://localhost:8010/ > /dev/null; then
     echo "Frontend: HEALTHY"
 else
     echo "Frontend: UNHEALTHY — check logs with: docker compose logs frontend"
@@ -92,7 +100,7 @@ server {
     server_name global-pulse.jslwealth.in;
 
     location / {
-        proxy_pass http://127.0.0.1:8109;
+        proxy_pass http://127.0.0.1:8010;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -100,7 +108,7 @@ server {
     }
 
     location /api/ {
-        proxy_pass http://127.0.0.1:8009;
+        proxy_pass http://127.0.0.1:8011;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -109,7 +117,7 @@ server {
     }
 
     location /health {
-        proxy_pass http://127.0.0.1:8009/health;
+        proxy_pass http://127.0.0.1:8011/health;
         access_log off;
     }
 }
@@ -132,11 +140,11 @@ fi
 echo ""
 echo "=== Setup Complete ==="
 echo "App URL: http://global-pulse.jslwealth.in (after DNS propagation)"
-echo "Direct:  http://13.206.34.214:8109 (frontend)"
-echo "API:     http://13.206.34.214:8009/health (backend)"
+echo "Direct:  http://13.206.34.214:8010 (frontend)"
+echo "API:     http://13.206.34.214:8011/health (backend)"
 echo ""
 echo "Ports used:"
-echo "  8009  → compass-backend (FastAPI)"
-echo "  8109  → compass-frontend (Nginx+React)"
+echo "  8011  → compass-backend (FastAPI)"
+echo "  8010  → compass-frontend (Nginx+React)"
 echo "  5433  → compass-db (PostgreSQL)"
 echo "  6380  → compass-redis (Redis)"
