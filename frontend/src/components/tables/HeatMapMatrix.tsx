@@ -118,7 +118,7 @@ export default function HeatMapMatrix({
                 const cellText =
                   mode === 'score'
                     ? cell.score.toFixed(0)
-                    : ACTION_SHORT[cell.quadrant] ?? '?'
+                    : ACTION_SHORT[cell.quadrant] ?? 'W'
 
                 return (
                   <td

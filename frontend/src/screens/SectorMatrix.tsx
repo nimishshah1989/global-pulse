@@ -11,7 +11,21 @@ import type { MatrixCellData } from '@/data/mockMatrixData'
 
 type ViewMode = 'score' | 'action'
 
-function getActionFromScore(score: number): Action {
+const VALID_ACTIONS: Set<string> = new Set([
+  'BUY', 'ACCUMULATE', 'HOLD_DIVERGENCE', 'HOLD_FADING', 'REDUCE', 'SELL', 'WATCH', 'AVOID',
+])
+
+const QUADRANT_TO_ACTION: Record<string, Action> = {
+  LEADING: 'BUY',
+  IMPROVING: 'ACCUMULATE',
+  WEAKENING: 'REDUCE',
+  LAGGING: 'SELL',
+}
+
+function resolveAction(raw: string | null | undefined, score: number): Action {
+  if (raw && VALID_ACTIONS.has(raw)) return raw as Action
+  if (raw && QUADRANT_TO_ACTION[raw]) return QUADRANT_TO_ACTION[raw]
+  // Fallback: derive from score
   if (score > 70) return 'BUY'
   if (score > 60) return 'ACCUMULATE'
   if (score > 50) return 'HOLD_FADING'
@@ -33,7 +47,7 @@ function transformApiMatrix(apiData: MatrixData): {
     if (!matrix[cell.country]) {
       matrix[cell.country] = {}
     }
-    const action = (cell.action as Action) ?? getActionFromScore(cell.rs_score)
+    const action = resolveAction(cell.action, cell.rs_score)
     matrix[cell.country][cell.sector] = {
       score: cell.rs_score,
       quadrant: action,

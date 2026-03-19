@@ -51,11 +51,20 @@ CANONICAL_COUNTRY_INDICES: list[str] = [
 ]
 
 
+_QUADRANT_TO_ACTION: dict[str, str] = {
+    "LEADING": "BUY",
+    "IMPROVING": "ACCUMULATE",
+    "WEAKENING": "REDUCE",
+    "LAGGING": "SELL",
+}
+
+
 def _rs_score_to_v2_dict(score: RSScore, inst: Instrument) -> dict[str, Any]:
     """Convert RSScore ORM model to v2 ranking dict."""
     adjusted = float(score.adjusted_rs_score) if score.adjusted_rs_score is not None else 50.0
     momentum = float(score.rs_momentum) if score.rs_momentum is not None else 0.0
-    action = score.quadrant or "WATCH"
+    raw_quadrant = score.quadrant or "WATCH"
+    action = _QUADRANT_TO_ACTION.get(raw_quadrant, raw_quadrant)
     rs_line = float(score.rs_line) if score.rs_line is not None else None
     rs_ma = float(score.rs_ma_150) if score.rs_ma_150 is not None else None
     price_trend = score.rs_trend or "UNDERPERFORMING"
