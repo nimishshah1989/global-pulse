@@ -7,7 +7,6 @@ import Breadcrumb from '@/components/layout/Breadcrumb'
 import RegimeBanner from '@/components/common/RegimeBanner'
 import DateNavigator from '@/components/common/DateNavigator'
 import ActionBadge from '@/components/common/QuadrantBadge'
-import WeightBadge from '@/components/common/WeightBadge'
 import LoadingSkeleton from '@/components/common/LoadingSkeleton'
 import ErrorAlert from '@/components/common/ErrorAlert'
 import BenchmarkSelector from '@/components/common/BenchmarkSelector'
@@ -239,7 +238,6 @@ function SectorCard({ sector, isSelected, onClick }: {
   onClick: () => void
 }): JSX.Element {
   const score = sector.rs_score ?? 0
-  const momentumPct = sector.rs_momentum_pct
 
   return (
     <div

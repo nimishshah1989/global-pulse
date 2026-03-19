@@ -8,7 +8,7 @@ import {
   type SortingState,
 } from '@tanstack/react-table'
 import { useState } from 'react'
-import type { RankingItem, PriceTrend, MomentumTrend, VolumeCharacter } from '@/types/rs'
+import type { RankingItem, PriceTrend, VolumeCharacter } from '@/types/rs'
 import ActionBadge from '@/components/common/QuadrantBadge'
 import { COUNTRY_FLAGS, COUNTRY_NAMES } from '@/data/mockCountryData'
 
@@ -72,15 +72,6 @@ function TrendArrow({ trend }: { trend: PriceTrend | null }): JSX.Element {
   return <span className="text-xs text-slate-400">--</span>
 }
 
-function MomentumLabel({ trend }: { trend: MomentumTrend | null }): JSX.Element {
-  if (trend === 'ACCELERATING') {
-    return <span className="text-xs font-medium text-emerald-600">Accel</span>
-  }
-  if (trend === 'DECELERATING') {
-    return <span className="text-xs font-medium text-red-600">Decel</span>
-  }
-  return <span className="text-xs text-slate-400">--</span>
-}
 
 function VolumeLabel({ character }: { character: VolumeCharacter | null }): JSX.Element {
   if (character === 'ACCUMULATION') {

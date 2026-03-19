@@ -29,17 +29,17 @@ export interface RankingItem {
   // Regime
   regime: Regime
   // Ratio returns (actual %)
-  return_1m: number | null
-  return_3m: number | null
-  return_6m: number | null
-  return_12m: number | null
+  return_1m?: number | null
+  return_3m?: number | null
+  return_6m?: number | null
+  return_12m?: number | null
   // Excess returns vs benchmark
-  excess_1m: number | null
-  excess_3m: number | null
-  excess_6m: number | null
-  excess_12m: number | null
+  excess_1m?: number | null
+  excess_3m?: number | null
+  excess_6m?: number | null
+  excess_12m?: number | null
   // Benchmark used
-  benchmark_id: string | null
+  benchmark_id?: string | null
 }
 
 // Backward compat
