@@ -122,10 +122,9 @@ echo "  Container status:"
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | grep -E 'compass|NAMES'
 echo ""
 
-# ── Step 5: Seed instruments + sample data ────────────────────────────
-echo "[5/9] Seeding instruments + sample data into PostgreSQL..."
-docker compose exec -T backend python scripts/seed_db.py 2>&1 | tail -20
-echo "  Seed complete."
+# ── Step 5: Ensure instruments exist ──────────────────────────────────
+echo "[5/9] Instruments should already be migrated via deploy-prod.sh"
+echo "  Skipping sample data seed (real data only)."
 
 # ── Step 6: Fetch REAL market data ────────────────────────────────────
 echo "[6/9] Fetching REAL market data from Stooq + yfinance..."

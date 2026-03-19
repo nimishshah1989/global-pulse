@@ -63,9 +63,7 @@ sleep 25
 echo "=== Container Status ==="
 docker compose ps
 
-# 4.5 Seed DB and compute RS scores
-echo "Seeding database..."
-docker compose exec -T backend python scripts/seed_db.py 2>/dev/null || echo "Seeding skipped (may already be seeded)"
+# 4.5 Compute RS scores (data must already be migrated via deploy-prod.sh)
 echo "Computing RS scores..."
 docker compose exec -T backend python -m scripts.compute_rs_batch 2>/dev/null || echo "RS computation skipped"
 

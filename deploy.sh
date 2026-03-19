@@ -59,11 +59,7 @@ else
   echo 'Nginx already configured.'
 fi"
 
-# Step 7: Seed database with sample data (first deploy)
-echo "Seeding database..."
-$SSH "cd $PROJECT_DIR && docker compose exec -T backend python scripts/seed_db.py" || echo "Seeding skipped (may already be seeded)"
-
-# Step 7.5: Compute RS scores
+# Step 7: Compute RS scores (uses real data from PostgreSQL)
 echo "Computing RS scores..."
 $SSH "cd $PROJECT_DIR && docker compose exec -T backend python -m scripts.compute_rs_batch" || echo "RS computation skipped"
 
