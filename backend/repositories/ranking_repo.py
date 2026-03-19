@@ -258,6 +258,17 @@ def _rs_score_to_v2_dict(score: RSScore, inst: Instrument) -> dict[str, Any]:
 # Trading days per period (approximate)
 _PERIOD_DAYS = {"1m": 21, "3m": 63, "6m": 126, "12m": 252}
 
+# Map frontend benchmark values to actual instrument IDs in the prices table
+_BENCHMARK_ID_MAP: dict[str, str] = {
+    "ACWI": "ACWI",
+    "SPX": "SPX",
+    "NSEI": "NSEI",
+    "GLD": "GLD_US",
+    "SHY": "SHY_US",
+    "EEM": "EEM_US",
+    "VEA": "VEA_US",
+}
+
 
 class RankingRepository:
     """Repository for v2 RS score rankings, DB-backed."""
@@ -278,11 +289,14 @@ class RankingRepository:
         if not items or self._session is None:
             return items
 
+        # Resolve benchmark override to actual prices table ID
+        resolved_override = _BENCHMARK_ID_MAP.get(benchmark_override, benchmark_override) if benchmark_override else None
+
         # Collect all instrument IDs + their benchmarks
         inst_ids = [it["instrument_id"] for it in items]
         bench_ids = set()
         for it in items:
-            bid = benchmark_override or it.get("benchmark_id")
+            bid = resolved_override or _BENCHMARK_ID_MAP.get(it.get("benchmark_id", ""), it.get("benchmark_id"))
             if bid:
                 bench_ids.add(bid)
         all_ids = list(set(inst_ids) | bench_ids)
@@ -325,7 +339,7 @@ class RankingRepository:
         # Enrich each item
         for it in items:
             iid = it["instrument_id"]
-            bid = benchmark_override or it.get("benchmark_id")
+            bid = resolved_override or _BENCHMARK_ID_MAP.get(it.get("benchmark_id", ""), it.get("benchmark_id"))
             asset_prices = prices.get(iid, [])
 
             for period_key, days in _PERIOD_DAYS.items():
@@ -337,6 +351,10 @@ class RankingRepository:
                     bench_ret = _compute_return(prices[bid], days)
                     if ret is not None and bench_ret is not None:
                         it[f"excess_{period_key}"] = round(ret - bench_ret, 2)
+
+            # Update benchmark_id to reflect what was actually used
+            if resolved_override:
+                it["benchmark_id"] = benchmark_override  # Show the user-friendly name
 
         return items
 
