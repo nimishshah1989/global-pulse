@@ -109,8 +109,36 @@ COUNTRY_CURRENCY: dict[str, str] = {
 }
 
 # ── Sector keyword patterns ────────────────────────────────────────────
-# Maps keywords found in ETF names to sector slugs
+# Maps keywords found in ETF names to sector slugs.
+# ORDER MATTERS: commodity-specific sectors checked before generic ones
+# so "gold" doesn't get classified as "materials".
 _SECTOR_KEYWORDS: dict[str, list[str]] = {
+    # ── Commodity sectors (check FIRST — before materials/energy) ──
+    "gold": [
+        "gold miner", "gold mining", "gold bugs",
+        "gold trust", "gold bullion", "gold etf",
+        "gold fund", "gold share", "gold strategy",
+        "physical gold", "gold covered",
+    ],
+    "silver": [
+        "silver", "silver miner", "silver mining", "silver trust",
+    ],
+    "crude_oil": [
+        "crude oil", "crude", "oil exploration", "oil service",
+        "oil & gas", "oil and gas", "petroleum", "brent",
+        "wti", "oil fund", "oil index", "oil refin",
+        " oil ", "oil etf", "big oil",
+    ],
+    "natural_gas": [
+        "natural gas",
+    ],
+    "commodities_broad": [
+        "commodity", "commodities", "agriculture", "agri",
+        "wheat", "corn", "soybean", "coffee", "sugar",
+        "platinum", "palladium", "copper miner", "uranium",
+        "rare earth", "lithium",
+    ],
+    # ── GICS core sectors ──
     "technology": [
         "technology", "tech", " it ", "information tech", "software",
         "internet", "cloud", "cyber", "digital",
@@ -124,8 +152,8 @@ _SECTOR_KEYWORDS: dict[str, list[str]] = {
         "genomic",
     ],
     "energy": [
-        "energy", "oil", "gas", "petroleum", "natural gas", "clean energy",
-        "solar", "wind energy", "renewable",
+        "energy", "clean energy", "solar", "wind energy", "renewable",
+        "mlp", "pipeline",
     ],
     "industrials": [
         "industrial", "industrials", "aerospace", "defense", "transport",
@@ -139,8 +167,7 @@ _SECTOR_KEYWORDS: dict[str, list[str]] = {
         "consumer staples", "food", "beverage", "household",
     ],
     "materials": [
-        "materials", "mining", "metals", "steel", "gold miner",
-        "silver miner", "rare earth", "lithium", "copper",
+        "materials", "mining", "metals", "steel", "copper",
     ],
     "utilities": [
         "utilities", "utility", "electric", "water",
@@ -682,18 +709,26 @@ class ETFClassifier:
         ]
         is_bond = any(kw in name_lower for kw in bond_keywords)
 
-        # Check for commodity keywords
-        commodity_keywords = [
-            "gold", "silver", "oil", "commodity", "natural gas", "agriculture",
-            "platinum", "palladium", "copper", "mining", "miner", "uranium",
-            "wheat", "corn",
-        ]
-        is_commodity = any(kw in name_lower for kw in commodity_keywords)
+        # Check for commodity keywords (use regex for words that are
+        # substrings of other words: "gold" in "goldman", "oil" in "foil")
+        _COMMODITY_RE = re.compile(
+            r'\bgold\b(?!man)|'
+            r'\bsilver\b|'
+            r'\boil\b|'
+            r'\bcrude\b|'
+            r'commodity|commodities|'
+            r'natural gas|agriculture|agri|'
+            r'platinum|palladium|copper|mining|miner|uranium|'
+            r'wheat|corn|soybean|coffee|sugar|'
+            r'bullion|precious metal',
+            re.IGNORECASE,
+        )
+        is_commodity = bool(_COMMODITY_RE.search(name_lower))
 
         if is_bond:
             return ETFClassification(
                 country=country,
-                sector=sector or "bond",
+                sector=sector or "fixed_income",
                 asset_class="fixed_income",
                 asset_type="bond_etf",
                 hierarchy_level=2,
@@ -703,9 +738,11 @@ class ETFClassifier:
             )
 
         if is_commodity:
+            # sector already resolved by _detect_sector_from_name
+            # (gold, silver, crude_oil, natural_gas, commodities_broad)
             return ETFClassification(
                 country=None,
-                sector=sector or "commodity",
+                sector=sector or "commodities_broad",
                 asset_class="commodity",
                 asset_type="commodity_etf",
                 hierarchy_level=2,

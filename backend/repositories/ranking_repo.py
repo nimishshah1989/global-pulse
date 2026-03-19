@@ -75,6 +75,62 @@ CANONICAL_COUNTRY_INDICES: list[str] = [
 ]
 
 
+# Sector group mapping: when user filters by a parent sector,
+# include all sub-sectors that belong to it.
+SECTOR_GROUP_MAP: dict[str, list[str]] = {
+    "gold": ["gold", "gold_miners", "gold_miners_jr"],
+    "silver": ["silver", "silver_miners"],
+    "crude_oil": ["crude_oil", "oil_gas_exploration", "oil_services"],
+    "natural_gas": ["natural_gas"],
+    "commodities_broad": [
+        "commodities_broad", "agriculture", "metals_broad",
+        "platinum", "palladium", "copper_miners", "uranium",
+        "lithium_battery", "rare_earth", "wheat", "corn",
+        "soybeans", "coffee", "cocoa", "cotton", "sugar",
+        "livestock", "timber", "carbon", "gasoline", "water",
+        "shipping",
+    ],
+    "fixed_income": [
+        "fixed_income", "aggregate_bond", "treasury_short",
+        "treasury_mid", "treasury_long", "treasury_ultrashort",
+        "treasury_strips", "tips", "floating_rate", "high_yield",
+        "investment_grade", "municipal", "mortgage_backed",
+        "em_bond", "intl_bond", "intl_treasury", "short_corp",
+        "intermediate_corp", "long_corp", "corporate_bond",
+        "convertible_bond", "preferred_stock", "target_date_bond",
+        "fixed_income_other", "clo", "short_duration_bond",
+        "long_duration_bond", "credit", "money_market", "bank_loans",
+    ],
+    "crypto": [
+        "crypto", "bitcoin", "ethereum", "solana",
+        "dogecoin", "xrp", "sui", "hbar", "chainlink", "blockchain",
+    ],
+    "energy": ["energy", "clean_energy", "solar", "wind_energy", "mlp_midstream"],
+    "technology": ["technology", "semiconductors", "cybersecurity",
+                   "cloud_computing", "artificial_intelligence",
+                   "robotics_ai", "fintech", "internet", "data_centers",
+                   "3d_printing", "space", "digital_media",
+                   "it", "electrical_equipment"],  # India/Japan variants
+    "healthcare": ["healthcare", "biotech", "pharma",
+                   "medical_devices", "genomics"],
+    "financials": ["financials", "banks", "regional_banks", "insurance",
+                   "bank", "psu_bank", "financial_services",  # India variants
+                   "other_finance", "securities"],  # Japan variants
+    "industrials": ["industrials", "aerospace_defense", "homebuilders",
+                    "airlines", "transportation", "infrastructure",
+                    "construction", "machinery",  # Japan variants
+                    "auto"],  # India variant
+    "consumer_discretionary": ["consumer_discretionary", "retail",
+                               "luxury", "gaming", "cannabis"],
+    "consumer_staples": ["consumer_staples", "fmcg", "foods"],  # India/Japan
+    "materials": ["materials", "iron_steel", "metal", "nonferrous_metals",
+                  "chemicals", "resources"],  # India/Japan/AU variants
+    "utilities": ["utilities"],
+    "real_estate": ["real_estate", "realty"],  # India variant
+    "communication_services": ["communication_services", "communication"],
+}
+
+
 _QUADRANT_TO_ACTION: dict[str, str] = {
     "LEADING": "BUY",
     "IMPROVING": "ACCUMULATE",
@@ -332,7 +388,8 @@ class RankingRepository:
             if asset_types is not None:
                 conditions.append(Instrument.asset_type.in_(asset_types))
             if sector is not None:
-                conditions.append(Instrument.sector == sector)
+                sector_slugs = SECTOR_GROUP_MAP.get(sector, [sector])
+                conditions.append(Instrument.sector.in_(sector_slugs))
 
             latest_sub = (
                 select(
@@ -412,7 +469,7 @@ class RankingRepository:
         return await self._get_rankings_filtered(
             asset_types=(
                 "sector_etf", "country_etf", "global_sector_etf",
-                "etf", "regional_etf",
+                "etf", "regional_etf", "commodity_etf", "bond_etf",
             ),
         )
 
@@ -430,13 +487,15 @@ class RankingRepository:
             conditions.append(
                 Instrument.asset_type.in_((
                     "sector_etf", "country_etf", "global_sector_etf",
-                    "etf", "regional_etf",
+                    "etf", "regional_etf", "commodity_etf", "bond_etf",
                 ))
             )
             if country_filter:
                 conditions.append(Instrument.country == country_filter)
             if sector_filter:
-                conditions.append(Instrument.sector == sector_filter)
+                # Expand sector groups: "gold" → ["gold", "gold_miners", ...]
+                sector_slugs = SECTOR_GROUP_MAP.get(sector_filter, [sector_filter])
+                conditions.append(Instrument.sector.in_(sector_slugs))
 
             latest_sub = (
                 select(

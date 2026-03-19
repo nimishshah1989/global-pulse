@@ -39,20 +39,76 @@ const COUNTRY_OPTIONS: { value: string; label: string }[] = [
 
 const SECTOR_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: 'All Sectors' },
+  // GICS core sectors
   { value: 'technology', label: 'Technology' },
   { value: 'financials', label: 'Financials' },
   { value: 'healthcare', label: 'Healthcare' },
   { value: 'industrials', label: 'Industrials' },
-  { value: 'consumer-discretionary', label: 'Consumer Disc.' },
-  { value: 'consumer-staples', label: 'Consumer Staples' },
+  { value: 'consumer_discretionary', label: 'Consumer Disc.' },
+  { value: 'consumer_staples', label: 'Consumer Staples' },
   { value: 'energy', label: 'Energy' },
   { value: 'materials', label: 'Materials' },
-  { value: 'real-estate', label: 'Real Estate' },
+  { value: 'real_estate', label: 'Real Estate' },
   { value: 'utilities', label: 'Utilities' },
-  { value: 'communication', label: 'Communication' },
+  { value: 'communication_services', label: 'Communication' },
+  // Commodity sectors
+  { value: 'gold', label: 'Gold' },
+  { value: 'silver', label: 'Silver' },
+  { value: 'crude_oil', label: 'Oil & Gas' },
+  { value: 'natural_gas', label: 'Natural Gas' },
+  { value: 'commodities_broad', label: 'Commodities (Broad)' },
+  // Other
+  { value: 'fixed_income', label: 'Fixed Income' },
+  { value: 'crypto', label: 'Crypto' },
 ]
 
 import { getTrendArrow, getTrendColor, getVolumeColor } from '@/utils/trend'
+
+/** Map sector slugs to human-readable display labels. */
+const SECTOR_DISPLAY: Record<string, string> = {
+  technology: 'Technology', financials: 'Financials', healthcare: 'Healthcare',
+  industrials: 'Industrials', consumer_discretionary: 'Consumer Disc.',
+  consumer_staples: 'Consumer Staples', energy: 'Energy', materials: 'Materials',
+  real_estate: 'Real Estate', utilities: 'Utilities',
+  communication_services: 'Communication', communication: 'Communication',
+  semiconductors: 'Semiconductors', biotech: 'Biotech', pharma: 'Pharma',
+  cybersecurity: 'Cybersecurity', cloud_computing: 'Cloud',
+  artificial_intelligence: 'AI', robotics_ai: 'Robotics/AI',
+  aerospace_defense: 'Aerospace & Defense', airlines: 'Airlines',
+  homebuilders: 'Homebuilders', banks: 'Banks', regional_banks: 'Regional Banks',
+  insurance: 'Insurance', medical_devices: 'Medical Devices',
+  oil_gas_exploration: 'Oil & Gas E&P', oil_services: 'Oil Services',
+  clean_energy: 'Clean Energy', solar: 'Solar', mlp_midstream: 'MLP/Midstream',
+  // Commodities
+  gold: 'Gold', gold_miners: 'Gold Miners', gold_miners_jr: 'Jr Gold Miners',
+  silver: 'Silver', silver_miners: 'Silver Miners',
+  crude_oil: 'Crude Oil', natural_gas: 'Natural Gas',
+  commodities_broad: 'Commodities', agriculture: 'Agriculture',
+  platinum: 'Platinum', palladium: 'Palladium', uranium: 'Uranium',
+  lithium_battery: 'Lithium', copper_miners: 'Copper Miners',
+  rare_earth: 'Rare Earth', metals_broad: 'Metals',
+  // Fixed income
+  fixed_income: 'Fixed Income', aggregate_bond: 'Bonds (Agg)',
+  treasury_short: 'Treasury Short', treasury_mid: 'Treasury Mid',
+  treasury_long: 'Treasury Long', high_yield: 'High Yield',
+  investment_grade: 'Inv. Grade', municipal: 'Municipal',
+  tips: 'TIPS', em_bond: 'EM Bonds', intl_bond: 'Int\'l Bonds',
+  fixed_income_other: 'Fixed Income',
+  // Crypto
+  crypto: 'Crypto', bitcoin: 'Bitcoin', ethereum: 'Ethereum',
+  // Style/Strategy
+  dividends: 'Dividends', dividend_income: 'Dividend Income',
+  broad_market: 'Broad Market', broad_equity: 'Broad Equity',
+  small_cap: 'Small Cap', mid_cap: 'Mid Cap', large_cap: 'Large Cap',
+  value: 'Value', growth: 'Growth', momentum: 'Momentum',
+  quality: 'Quality', low_volatility: 'Low Vol',
+  country_equity: 'Country Equity',
+}
+
+function formatSector(slug: string | null | undefined): string {
+  if (!slug) return '--'
+  return SECTOR_DISPLAY[slug] ?? slug.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
 
 function getRowBg(action: Action): string {
   if (action === 'BUY') return 'bg-emerald-50/40'
@@ -180,7 +236,7 @@ export default function TopETFs(): JSX.Element {
                     {etf.country ?? '--'}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-                    {etf.sector ?? '--'}
+                    {formatSector(etf.sector)}
                   </td>
                   <td className="px-4 py-3">
                     <ActionBadge action={etf.action} />
