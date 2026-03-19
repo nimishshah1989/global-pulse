@@ -10,10 +10,12 @@ import ActionBadge from '@/components/common/QuadrantBadge'
 import WeightBadge from '@/components/common/WeightBadge'
 import LoadingSkeleton from '@/components/common/LoadingSkeleton'
 import ErrorAlert from '@/components/common/ErrorAlert'
+import BenchmarkSelector from '@/components/common/BenchmarkSelector'
 import { useSectorRankings } from '@/api/hooks/useRankings'
 import { useSectorRRG } from '@/api/hooks/useRRG'
 import { useRegime } from '@/api/hooks/useRegime'
 import { useInstrumentPrices, computeRSLineFromPrices } from '@/api/hooks/useInstrument'
+import { useBenchmarkStore } from '@/store/benchmarkStore'
 import { COUNTRY_NAMES, COUNTRY_BENCHMARK_MAP } from '@/data/mockCountryData'
 import type { RankingItem, Action, RRGDataPoint } from '@/types/rs'
 
@@ -48,7 +50,8 @@ export default function CountryDeepDive(): JSX.Element {
   const navigate = useNavigate()
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
-  const { data: sectorData, isLoading: sectorsLoading, error: sectorsError, refetch: refetchSectors } = useSectorRankings(code, selectedDate)
+  const benchmark = useBenchmarkStore((state) => state.benchmark)
+  const { data: sectorData, isLoading: sectorsLoading, error: sectorsError, refetch: refetchSectors } = useSectorRankings(code, selectedDate, benchmark)
   const { data: rrgApiData, isLoading: rrgLoading } = useSectorRRG(code)
   const { data: regimeData } = useRegime()
 
@@ -119,7 +122,10 @@ export default function CountryDeepDive(): JSX.Element {
             </h1>
             <p className="text-sm text-slate-500">Which sectors are leading within this market?</p>
           </div>
-          <DateNavigator selectedDate={selectedDate} onDateChange={setSelectedDate} />
+          <div className="flex items-center gap-4">
+            <BenchmarkSelector />
+            <DateNavigator selectedDate={selectedDate} onDateChange={setSelectedDate} />
+          </div>
         </div>
       </div>
 
@@ -247,32 +253,40 @@ function SectorCard({ sector, isSelected, onClick }: {
       <div className="flex items-start justify-between">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-slate-900">{sector.name}</p>
+          {/* Show ratio returns instead of abstract score */}
           <div className="mt-1 flex items-center gap-2">
-            <span className="font-mono text-lg font-bold text-slate-800">
-              {score.toFixed(1)}
-            </span>
+            {sector.return_3m != null ? (
+              <span className={`font-mono text-sm font-bold ${sector.return_3m > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                {sector.return_3m > 0 ? '+' : ''}{sector.return_3m.toFixed(1)}%
+                <span className="text-[10px] text-slate-400 ml-0.5">3M</span>
+              </span>
+            ) : (
+              <span className="font-mono text-sm font-bold text-slate-800">
+                {score.toFixed(1)}
+              </span>
+            )}
             <span className={`text-sm ${getTrendColor(sector.price_trend)}`}>
               {getTrendArrow(sector.price_trend)}
             </span>
           </div>
         </div>
         <div className="ml-2 flex flex-col items-end gap-1">
-          <WeightBadge action={sector.action} />
           <ActionBadge action={sector.action} />
         </div>
       </div>
-      <div className="mt-2 flex gap-3 text-[10px] text-slate-500">
-        <span>
-          Mom: <span className={`font-mono font-medium ${getTrendColor(sector.momentum_trend)}`}>
-            {momentumPct !== null && momentumPct !== undefined ? `${momentumPct > 0 ? '+' : ''}${momentumPct.toFixed(1)}%` : '--'}
+      <div className="mt-2 flex gap-2 text-[10px] text-slate-500">
+        {sector.return_1m != null && (
+          <span className={`font-mono font-medium ${sector.return_1m > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+            1M: {sector.return_1m > 0 ? '+' : ''}{sector.return_1m.toFixed(1)}%
           </span>
-        </span>
-        <span>
-          Vol: <span className={`font-mono font-medium ${
-            getVolumeColor(sector.volume_character)
-          }`}>
-            {sector.volume_character ?? '--'}
+        )}
+        {sector.return_6m != null && (
+          <span className={`font-mono font-medium ${sector.return_6m > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+            6M: {sector.return_6m > 0 ? '+' : ''}{sector.return_6m.toFixed(1)}%
           </span>
+        )}
+        <span className={`font-mono font-medium ${getVolumeColor(sector.volume_character)}`}>
+          {sector.volume_character ?? '--'}
         </span>
       </div>
     </div>

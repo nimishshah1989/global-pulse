@@ -1,6 +1,7 @@
 """Ranking endpoints v2 — country, sector, stock, and ETF rankings.
 
 Uses the simplified 3-indicator RS engine with action matrix.
+Supports benchmark parameter for ratio return computation.
 """
 from __future__ import annotations
 
@@ -30,12 +31,13 @@ def _get_ranking_service(session: AsyncSession) -> RankingService:
 @router.get("/countries")
 async def get_country_rankings(
     as_of: date | None = Query(None, description="Historical date (YYYY-MM-DD)"),
+    benchmark: str | None = Query(None, description="Benchmark instrument ID (e.g. ACWI, SPX, GLD)"),
     session: AsyncSession = Depends(get_db),
 ) -> ApiResponse[list[RankingItemV2]]:
     """Return RS rankings for all country indices."""
     try:
         service = _get_ranking_service(session)
-        items = await service.get_country_rankings(as_of=as_of)
+        items = await service.get_country_rankings(as_of=as_of, benchmark=benchmark)
         return ApiResponse(
             data=items,
             meta=Meta(timestamp=datetime.now(tz=timezone.utc), count=len(items)),
@@ -49,12 +51,15 @@ async def get_country_rankings(
 async def get_sector_rankings(
     country_code: str,
     as_of: date | None = Query(None, description="Historical date (YYYY-MM-DD)"),
+    benchmark: str | None = Query(None, description="Benchmark instrument ID"),
     session: AsyncSession = Depends(get_db),
 ) -> ApiResponse[list[RankingItemV2]]:
     """Return RS rankings for sectors within a country."""
     try:
         service = _get_ranking_service(session)
-        items = await service.get_sector_rankings(country_code, as_of=as_of)
+        items = await service.get_sector_rankings(
+            country_code, as_of=as_of, benchmark=benchmark,
+        )
         return ApiResponse(
             data=items,
             meta=Meta(timestamp=datetime.now(tz=timezone.utc), count=len(items)),
@@ -70,12 +75,15 @@ async def get_sector_rankings(
 async def get_stock_rankings(
     country_code: str,
     sector: str,
+    benchmark: str | None = Query(None, description="Benchmark instrument ID"),
     session: AsyncSession = Depends(get_db),
 ) -> ApiResponse[list[RankingItemV2]]:
     """Return RS rankings for stocks in a country+sector."""
     try:
         service = _get_ranking_service(session)
-        items = await service.get_stock_rankings(country_code, sector)
+        items = await service.get_stock_rankings(
+            country_code, sector, benchmark=benchmark,
+        )
         return ApiResponse(
             data=items,
             meta=Meta(timestamp=datetime.now(tz=timezone.utc), count=len(items)),
@@ -89,12 +97,13 @@ async def get_stock_rankings(
 
 @router.get("/global-sectors")
 async def get_global_sector_rankings(
+    benchmark: str | None = Query(None, description="Benchmark instrument ID"),
     session: AsyncSession = Depends(get_db),
 ) -> ApiResponse[list[RankingItemV2]]:
     """Return RS rankings for global sector ETFs."""
     try:
         service = _get_ranking_service(session)
-        items = await service.get_global_sector_rankings()
+        items = await service.get_global_sector_rankings(benchmark=benchmark)
         return ApiResponse(
             data=items,
             meta=Meta(timestamp=datetime.now(tz=timezone.utc), count=len(items)),

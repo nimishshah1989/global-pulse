@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import WorldChoropleth from '@/components/maps/WorldChoropleth'
 import RegimeBanner from '@/components/common/RegimeBanner'
+import BenchmarkSelector from '@/components/common/BenchmarkSelector'
 import DateNavigator from '@/components/common/DateNavigator'
 import LoadingSkeleton from '@/components/common/LoadingSkeleton'
 import ErrorAlert from '@/components/common/ErrorAlert'
@@ -9,10 +10,37 @@ import ActionBadge from '@/components/common/QuadrantBadge'
 import { useCountryRankings, useSectorRankings } from '@/api/hooks/useRankings'
 import { useRegime } from '@/api/hooks/useRegime'
 import { useMatrix } from '@/api/hooks/useMatrix'
+import { useBenchmarkStore } from '@/store/benchmarkStore'
 import type { MatrixData } from '@/api/hooks/useMatrix'
 import { COUNTRY_FLAGS, COUNTRY_NAMES } from '@/data/mockCountryData'
 import { getTrendLabel, getTrendLabelShort, getTrendColor, getVolumeColor } from '@/utils/trend'
 import type { RankingItem, Action } from '@/types/rs'
+
+/* ---------- Return display helpers ---------- */
+
+function ReturnCell({ value, label }: { value: number | null | undefined; label: string }): JSX.Element {
+  if (value == null) return <span className="text-slate-300">--</span>
+  const color = value > 0 ? 'text-emerald-600' : value < 0 ? 'text-red-600' : 'text-slate-500'
+  return (
+    <div className="text-center">
+      <div className={`font-mono text-xs font-semibold ${color}`}>
+        {value > 0 ? '+' : ''}{value.toFixed(1)}%
+      </div>
+      <div className="text-[10px] text-slate-400">{label}</div>
+    </div>
+  )
+}
+
+function ExcessReturnBar({ value }: { value: number | null | undefined }): JSX.Element {
+  if (value == null) return <span className="text-slate-300 text-[10px]">--</span>
+  const color = value > 0 ? 'text-emerald-600' : value < 0 ? 'text-red-600' : 'text-slate-500'
+  const bgColor = value > 0 ? 'bg-emerald-100' : value < 0 ? 'bg-red-100' : 'bg-slate-100'
+  return (
+    <span className={`inline-block rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold ${color} ${bgColor}`}>
+      {value > 0 ? '+' : ''}{value.toFixed(1)}%
+    </span>
+  )
+}
 
 /* ---------- Action color helpers ---------- */
 
@@ -84,21 +112,28 @@ function SectorRow({ sector, isExpanded, onToggle }: {
       </button>
       {isExpanded && (
         <div className="border-t border-slate-200/60 px-4 py-3">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
-            <div className="flex justify-between">
-              <span className="text-slate-500">RS Score</span>
-              <span className="font-mono font-semibold text-slate-800">{sector.rs_score.toFixed(1)}</span>
+          {/* Ratio returns row */}
+          <div className="mb-2 flex items-center gap-3">
+            <ReturnCell value={sector.return_1m} label="1M" />
+            <ReturnCell value={sector.return_3m} label="3M" />
+            <ReturnCell value={sector.return_6m} label="6M" />
+            <ReturnCell value={sector.return_12m} label="12M" />
+          </div>
+          {/* Excess returns */}
+          {(sector.excess_3m != null || sector.excess_6m != null) && (
+            <div className="mb-2 flex items-center gap-1.5">
+              <span className="text-[10px] text-slate-400">vs bench:</span>
+              <ExcessReturnBar value={sector.excess_1m} />
+              <ExcessReturnBar value={sector.excess_3m} />
+              <ExcessReturnBar value={sector.excess_6m} />
+              <ExcessReturnBar value={sector.excess_12m} />
             </div>
+          )}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
             <div className="flex justify-between">
               <span className="text-slate-500">Price Trend</span>
               <span className={`font-medium ${getTrendColor(sector.price_trend)}`}>
                 {getTrendLabelShort(sector.price_trend)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Momentum</span>
-              <span className={`font-mono font-medium ${(sector.rs_momentum_pct ?? 0) > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                {sector.rs_momentum_pct !== null ? `${sector.rs_momentum_pct > 0 ? '+' : ''}${sector.rs_momentum_pct.toFixed(1)}%` : '--'}
               </span>
             </div>
             <div className="flex justify-between">
@@ -117,7 +152,8 @@ function SectorRow({ sector, isExpanded, onToggle }: {
 /* ---------- Expanded country panel with its sectors ---------- */
 
 function CountrySectors({ countryCode }: { countryCode: string }): JSX.Element {
-  const { data: sectorData, isLoading } = useSectorRankings(countryCode)
+  const benchmark = useBenchmarkStore((state) => state.benchmark)
+  const { data: sectorData, isLoading } = useSectorRankings(countryCode, null, benchmark)
   const sectors: RankingItem[] = Array.isArray(sectorData) ? sectorData : []
   const [expandedSector, setExpandedSector] = useState<string | null>(null)
 
@@ -177,30 +213,37 @@ function CountryCard({ item, isExpanded, onToggle, onDeepDive }: {
 
       {isExpanded && (
         <div className="border-t border-slate-200/60 px-5 py-4">
-          {/* Country detail stats */}
-          <div className="mb-4 grid grid-cols-2 gap-x-8 gap-y-2 rounded-lg bg-white/70 px-4 py-3 text-xs sm:grid-cols-4">
-            <div>
-              <span className="text-slate-500">RS Score</span>
-              <p className="font-mono text-base font-bold text-slate-900">{item.rs_score.toFixed(1)}</p>
-            </div>
-            <div>
-              <span className="text-slate-500">Price Trend</span>
-              <p className={`font-medium ${getTrendColor(item.price_trend)}`}>
+          {/* Ratio returns — the primary display */}
+          <div className="mb-3 rounded-lg bg-white/70 px-4 py-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500">Returns</span>
+              <span className={`text-xs font-medium ${getTrendColor(item.price_trend)}`}>
                 {getTrendLabel(item.price_trend)}
-              </p>
+              </span>
             </div>
-            <div>
-              <span className="text-slate-500">Momentum</span>
-              <p className={`font-mono font-semibold ${(item.rs_momentum_pct ?? 0) > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                {item.rs_momentum_pct !== null ? `${item.rs_momentum_pct > 0 ? '+' : ''}${item.rs_momentum_pct.toFixed(1)}%` : '--'}
-              </p>
+            <div className="flex items-center gap-4">
+              <ReturnCell value={item.return_1m} label="1M" />
+              <ReturnCell value={item.return_3m} label="3M" />
+              <ReturnCell value={item.return_6m} label="6M" />
+              <ReturnCell value={item.return_12m} label="12M" />
+              <div className="mx-2 h-8 w-px bg-slate-200" />
+              <div className="text-center">
+                <div className={`font-mono text-xs font-semibold ${getVolumeColor(item.volume_character)}`}>
+                  {item.volume_character ?? '--'}
+                </div>
+                <div className="text-[10px] text-slate-400">Volume</div>
+              </div>
             </div>
-            <div>
-              <span className="text-slate-500">Volume</span>
-              <p className={`font-medium ${getVolumeColor(item.volume_character)}`}>
-                {item.volume_character ?? '--'}
-              </p>
-            </div>
+            {/* Excess returns vs benchmark */}
+            {(item.excess_3m != null || item.excess_6m != null) && (
+              <div className="mt-2 flex items-center gap-1.5 border-t border-slate-100 pt-2">
+                <span className="text-[10px] text-slate-400">vs benchmark:</span>
+                <ExcessReturnBar value={item.excess_1m} />
+                <ExcessReturnBar value={item.excess_3m} />
+                <ExcessReturnBar value={item.excess_6m} />
+                <ExcessReturnBar value={item.excess_12m} />
+              </div>
+            )}
           </div>
 
           {/* Navigation links */}
@@ -293,7 +336,8 @@ function SectorCountryMatrix({ matrixData }: { matrixData: MatrixData }): JSX.El
 export default function GlobalPulse(): JSX.Element {
   const navigate = useNavigate()
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
-  const { data: countryData, isLoading: countriesLoading, error: countriesError, refetch: refetchCountries } = useCountryRankings(selectedDate)
+  const benchmark = useBenchmarkStore((state) => state.benchmark)
+  const { data: countryData, isLoading: countriesLoading, error: countriesError, refetch: refetchCountries } = useCountryRankings(selectedDate, benchmark)
   const { data: regimeData } = useRegime()
   const { data: matrixData, isLoading: matrixLoading } = useMatrix()
   const [expandedCountry, setExpandedCountry] = useState<string | null>(null)
@@ -309,7 +353,10 @@ export default function GlobalPulse(): JSX.Element {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-slate-900">Global Pulse</h1>
-        <DateNavigator selectedDate={selectedDate} onDateChange={setSelectedDate} />
+        <div className="flex items-center gap-4">
+          <BenchmarkSelector />
+          <DateNavigator selectedDate={selectedDate} onDateChange={setSelectedDate} />
+        </div>
       </div>
 
       {regimeData && <RegimeBanner regime={regimeData.regime} />}

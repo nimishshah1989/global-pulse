@@ -1,6 +1,7 @@
 """Ranking repository v2 — RS score queries using the 3-indicator system.
 
 Queries rs_scores table and maps to v2 format (action matrix instead of quadrants).
+Includes ratio return computation from prices table.
 """
 from __future__ import annotations
 
@@ -8,10 +9,10 @@ import datetime
 import logging
 from typing import Any
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Instrument, RSScore
+from db.models import Instrument, Price, RSScore
 from repositories.instrument_repo import InstrumentRepository
 
 logger = logging.getLogger(__name__)
@@ -220,6 +221,12 @@ def _rs_score_to_v2_dict(score: RSScore, inst: Instrument) -> dict[str, Any]:
     # Momentum trend from sign
     momentum_trend = "ACCELERATING" if momentum > 0 else "DECELERATING"
 
+    # Map percentile returns from rs_scores (these are pre-computed)
+    return_1m = float(score.rs_pct_1m) if score.rs_pct_1m is not None else None
+    return_3m = float(score.rs_pct_3m) if score.rs_pct_3m is not None else None
+    return_6m = float(score.rs_pct_6m) if score.rs_pct_6m is not None else None
+    return_12m = float(score.rs_pct_12m) if score.rs_pct_12m is not None else None
+
     return {
         "instrument_id": score.instrument_id,
         "name": inst.name,
@@ -235,7 +242,21 @@ def _rs_score_to_v2_dict(score: RSScore, inst: Instrument) -> dict[str, Any]:
         "action": action,
         "rs_score": adjusted,
         "regime": score.regime or "RISK_ON",
+        "benchmark_id": inst.benchmark_id,
+        # Ratio returns — populated by enrich step (None until enriched)
+        "return_1m": return_1m,
+        "return_3m": return_3m,
+        "return_6m": return_6m,
+        "return_12m": return_12m,
+        "excess_1m": None,
+        "excess_3m": None,
+        "excess_6m": None,
+        "excess_12m": None,
     }
+
+
+# Trading days per period (approximate)
+_PERIOD_DAYS = {"1m": 21, "3m": 63, "6m": 126, "12m": 252}
 
 
 class RankingRepository:
@@ -244,6 +265,80 @@ class RankingRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
         self._instrument_repo = InstrumentRepository(session)
+
+    async def _enrich_with_returns(
+        self,
+        items: list[dict[str, Any]],
+        benchmark_override: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Enrich ranking items with ratio returns from prices table.
+
+        Computes actual % returns for 1M, 3M, 6M, 12M and excess vs benchmark.
+        """
+        if not items or self._session is None:
+            return items
+
+        # Collect all instrument IDs + their benchmarks
+        inst_ids = [it["instrument_id"] for it in items]
+        bench_ids = set()
+        for it in items:
+            bid = benchmark_override or it.get("benchmark_id")
+            if bid:
+                bench_ids.add(bid)
+        all_ids = list(set(inst_ids) | bench_ids)
+
+        # Fetch recent prices for all instruments (last 260 trading days)
+        cutoff = datetime.date.today() - datetime.timedelta(days=400)
+        try:
+            stmt = (
+                select(Price.instrument_id, Price.date, Price.close)
+                .where(Price.instrument_id.in_(all_ids))
+                .where(Price.date >= cutoff)
+                .order_by(Price.instrument_id, Price.date)
+            )
+            result = await self._session.execute(stmt)
+            rows = result.all()
+        except Exception as e:
+            logger.debug("Failed to fetch prices for returns: %s", e)
+            return items
+
+        # Build price lookup: {instrument_id: [(date, close), ...]}
+        from collections import defaultdict
+        prices: dict[str, list[tuple[datetime.date, float]]] = defaultdict(list)
+        for iid, dt, close in rows:
+            prices[iid].append((dt, float(close)))
+
+        def _compute_return(price_list: list[tuple[datetime.date, float]], days: int) -> float | None:
+            """Compute simple return over approximately N trading days."""
+            if len(price_list) < 2:
+                return None
+            latest_close = price_list[-1][1]
+            # Find the price closest to N trading days ago
+            target_idx = max(0, len(price_list) - days - 1)
+            if target_idx >= len(price_list) - 1:
+                return None
+            old_close = price_list[target_idx][1]
+            if old_close == 0:
+                return None
+            return round((latest_close / old_close - 1) * 100, 2)
+
+        # Enrich each item
+        for it in items:
+            iid = it["instrument_id"]
+            bid = benchmark_override or it.get("benchmark_id")
+            asset_prices = prices.get(iid, [])
+
+            for period_key, days in _PERIOD_DAYS.items():
+                ret = _compute_return(asset_prices, days)
+                it[f"return_{period_key}"] = ret
+
+                # Excess return
+                if bid and bid in prices:
+                    bench_ret = _compute_return(prices[bid], days)
+                    if ret is not None and bench_ret is not None:
+                        it[f"excess_{period_key}"] = round(ret - bench_ret, 2)
+
+        return items
 
     async def _get_rankings_by_ids(
         self, instrument_ids: list[str],
@@ -333,38 +428,47 @@ class RankingRepository:
 
     async def get_country_rankings(
         self, as_of: datetime.date | None = None,
+        benchmark: str | None = None,
     ) -> list[dict[str, Any]]:
         """Return canonical country index rankings."""
-        return await self._get_rankings_by_ids(
+        items = await self._get_rankings_by_ids(
             CANONICAL_COUNTRY_INDICES, as_of=as_of
         )
+        return await self._enrich_with_returns(items, benchmark_override=benchmark)
 
     async def get_sector_rankings(
         self, country_code: str, as_of: datetime.date | None = None,
+        benchmark: str | None = None,
     ) -> list[dict[str, Any]]:
         """Return sector rankings for a country."""
         canonical_ids = CANONICAL_SECTORS.get(country_code)
         if canonical_ids is not None:
-            return await self._get_rankings_by_ids(canonical_ids, as_of=as_of)
-
-        return await self._get_rankings_filtered(
-            country=country_code,
-            asset_types=("sector_etf", "sector_index"),
-        )
+            items = await self._get_rankings_by_ids(canonical_ids, as_of=as_of)
+        else:
+            items = await self._get_rankings_filtered(
+                country=country_code,
+                asset_types=("sector_etf", "sector_index"),
+            )
+        return await self._enrich_with_returns(items, benchmark_override=benchmark)
 
     async def get_stock_rankings(
         self, country_code: str, sector: str,
+        benchmark: str | None = None,
     ) -> list[dict[str, Any]]:
         """Return stock rankings for a country+sector."""
-        return await self._get_rankings_filtered(
+        items = await self._get_rankings_filtered(
             country=country_code,
             asset_types=("stock",),
             sector=sector,
         )
+        return await self._enrich_with_returns(items, benchmark_override=benchmark)
 
-    async def get_global_sector_rankings(self) -> list[dict[str, Any]]:
+    async def get_global_sector_rankings(
+        self, benchmark: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Return global sector ETF rankings."""
-        return await self._get_rankings_by_ids(CANONICAL_GLOBAL_SECTORS)
+        items = await self._get_rankings_by_ids(CANONICAL_GLOBAL_SECTORS)
+        return await self._enrich_with_returns(items, benchmark_override=benchmark)
 
     async def get_all_etf_rankings(self) -> list[dict[str, Any]]:
         """Return all ETF rankings — the main output screen."""

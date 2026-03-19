@@ -2,22 +2,26 @@ import { useQuery } from '@tanstack/react-query'
 import apiClient from '@/api/client'
 import type { RankingItem } from '@/types/rs'
 
-export function useCountryRankings(asOf?: string | null) {
+export function useCountryRankings(asOf?: string | null, benchmark?: string | null) {
   return useQuery<RankingItem[]>({
-    queryKey: ['rankings', 'countries', asOf ?? 'live'],
+    queryKey: ['rankings', 'countries', asOf ?? 'live', benchmark ?? 'default'],
     queryFn: async () => {
-      const params = asOf ? { as_of: asOf } : {}
+      const params: Record<string, string> = {}
+      if (asOf) params.as_of = asOf
+      if (benchmark) params.benchmark = benchmark
       const response = await apiClient.get<RankingItem[]>('/rankings/countries', { params })
       return response.data
     },
   })
 }
 
-export function useSectorRankings(countryCode: string, asOf?: string | null) {
+export function useSectorRankings(countryCode: string, asOf?: string | null, benchmark?: string | null) {
   return useQuery<RankingItem[]>({
-    queryKey: ['rankings', 'sectors', countryCode, asOf ?? 'live'],
+    queryKey: ['rankings', 'sectors', countryCode, asOf ?? 'live', benchmark ?? 'default'],
     queryFn: async () => {
-      const params = asOf ? { as_of: asOf } : {}
+      const params: Record<string, string> = {}
+      if (asOf) params.as_of = asOf
+      if (benchmark) params.benchmark = benchmark
       const response = await apiClient.get<RankingItem[]>(`/rankings/sectors/${countryCode}`, { params })
       return response.data
     },
@@ -25,12 +29,15 @@ export function useSectorRankings(countryCode: string, asOf?: string | null) {
   })
 }
 
-export function useStockRankings(countryCode: string, sector: string) {
+export function useStockRankings(countryCode: string, sector: string, benchmark?: string | null) {
   return useQuery<RankingItem[]>({
-    queryKey: ['rankings', 'stocks', countryCode, sector],
+    queryKey: ['rankings', 'stocks', countryCode, sector, benchmark ?? 'default'],
     queryFn: async () => {
+      const params: Record<string, string> = {}
+      if (benchmark) params.benchmark = benchmark
       const response = await apiClient.get<RankingItem[]>(
         `/rankings/stocks/${countryCode}/${sector}`,
+        { params },
       )
       return response.data
     },
@@ -38,11 +45,13 @@ export function useStockRankings(countryCode: string, sector: string) {
   })
 }
 
-export function useGlobalSectorRankings() {
+export function useGlobalSectorRankings(benchmark?: string | null) {
   return useQuery<RankingItem[]>({
-    queryKey: ['rankings', 'global-sectors'],
+    queryKey: ['rankings', 'global-sectors', benchmark ?? 'default'],
     queryFn: async () => {
-      const response = await apiClient.get<RankingItem[]>('/rankings/global-sectors')
+      const params: Record<string, string> = {}
+      if (benchmark) params.benchmark = benchmark
+      const response = await apiClient.get<RankingItem[]>('/rankings/global-sectors', { params })
       return response.data
     },
   })

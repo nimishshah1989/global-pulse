@@ -34,6 +34,18 @@ class RankingItemV2(BaseModel):
     rs_score: float = 50.0
     # Regime
     regime: str = "RISK_ON"
+    # Ratio returns (actual % returns)
+    return_1m: float | None = None
+    return_3m: float | None = None
+    return_6m: float | None = None
+    return_12m: float | None = None
+    # Excess returns vs benchmark
+    excess_1m: float | None = None
+    excess_3m: float | None = None
+    excess_6m: float | None = None
+    excess_12m: float | None = None
+    # Benchmark used
+    benchmark_id: str | None = None
 
     # Legacy compatibility fields (map new to old for smooth transition)
     @property

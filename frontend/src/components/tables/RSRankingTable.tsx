@@ -144,38 +144,54 @@ export default function RSRankingTable({
     }
 
     cols.push(
-      columnHelper.accessor('rs_score', {
-        header: 'RS Score',
-        cell: (info) => (
-          <span className="font-mono font-semibold text-slate-900">
-            {info.getValue().toFixed(1)}
-          </span>
-        ),
-        sortingFn: 'basic',
-      }),
       columnHelper.accessor('action', {
         header: 'Action',
         cell: (info) => <ActionBadge action={info.getValue()} />,
         sortingFn: 'alphanumeric',
       }),
-      columnHelper.accessor('price_trend', {
-        header: 'Price Trend',
-        cell: (info) => <TrendArrow trend={info.getValue()} />,
-        sortingFn: 'alphanumeric',
-      }),
-      columnHelper.accessor('rs_momentum_pct', {
-        header: 'Momentum %',
+      columnHelper.accessor('return_1m', {
+        header: '1M',
         cell: (info) => {
           const val = info.getValue()
-          if (val === null) return <span className="text-slate-400">--</span>
+          if (val == null) return <span className="text-slate-300">--</span>
           const color = val > 0 ? 'text-emerald-600' : val < 0 ? 'text-red-600' : 'text-slate-500'
-          return <span className={`font-mono font-medium ${color}`}>{formatPct(val)}</span>
+          return <span className={`font-mono text-xs font-semibold ${color}`}>{formatPct(val)}%</span>
         },
         sortingFn: 'basic',
       }),
-      columnHelper.accessor('momentum_trend', {
-        header: 'Mom. Trend',
-        cell: (info) => <MomentumLabel trend={info.getValue()} />,
+      columnHelper.accessor('return_3m', {
+        header: '3M',
+        cell: (info) => {
+          const val = info.getValue()
+          if (val == null) return <span className="text-slate-300">--</span>
+          const color = val > 0 ? 'text-emerald-600' : val < 0 ? 'text-red-600' : 'text-slate-500'
+          return <span className={`font-mono text-xs font-semibold ${color}`}>{formatPct(val)}%</span>
+        },
+        sortingFn: 'basic',
+      }),
+      columnHelper.accessor('return_6m', {
+        header: '6M',
+        cell: (info) => {
+          const val = info.getValue()
+          if (val == null) return <span className="text-slate-300">--</span>
+          const color = val > 0 ? 'text-emerald-600' : val < 0 ? 'text-red-600' : 'text-slate-500'
+          return <span className={`font-mono text-xs font-semibold ${color}`}>{formatPct(val)}%</span>
+        },
+        sortingFn: 'basic',
+      }),
+      columnHelper.accessor('return_12m', {
+        header: '12M',
+        cell: (info) => {
+          const val = info.getValue()
+          if (val == null) return <span className="text-slate-300">--</span>
+          const color = val > 0 ? 'text-emerald-600' : val < 0 ? 'text-red-600' : 'text-slate-500'
+          return <span className={`font-mono text-xs font-semibold ${color}`}>{formatPct(val)}%</span>
+        },
+        sortingFn: 'basic',
+      }),
+      columnHelper.accessor('price_trend', {
+        header: 'Trend',
+        cell: (info) => <TrendArrow trend={info.getValue()} />,
         sortingFn: 'alphanumeric',
       }),
       columnHelper.accessor('volume_character', {
