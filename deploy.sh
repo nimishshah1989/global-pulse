@@ -63,6 +63,10 @@ fi"
 echo "Seeding database..."
 $SSH "cd $PROJECT_DIR && docker compose exec -T backend python scripts/seed_db.py" || echo "Seeding skipped (may already be seeded)"
 
+# Step 7.5: Compute RS scores
+echo "Computing RS scores..."
+$SSH "cd $PROJECT_DIR && docker compose exec -T backend python -m scripts.compute_rs_batch" || echo "RS computation skipped"
+
 # Step 8: Health check
 echo "Running health check..."
 HEALTH=$($SSH "curl -s http://localhost:8011/health" 2>/dev/null || echo '{"status":"error"}')

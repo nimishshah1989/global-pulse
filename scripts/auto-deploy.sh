@@ -5,9 +5,9 @@
 
 set -euo pipefail
 
-PROJECT_DIR="/home/ubuntu/momentum-compass"
+PROJECT_DIR="/home/ubuntu/global-pulse"
 BRANCH="claude/review-and-plan-architecture-6aWr1"
-LOG_FILE="/home/ubuntu/momentum-compass/deploy.log"
+LOG_FILE="/home/ubuntu/global-pulse/deploy.log"
 LOCK_FILE="/tmp/compass-deploy.lock"
 
 log() {
@@ -75,8 +75,14 @@ if [ "$REBUILD_FRONTEND" = true ]; then
     docker compose up -d frontend 2>&1 | tee -a "$LOG_FILE"
 fi
 
+# Re-compute RS scores after backend rebuild
+if [ "$REBUILD_BACKEND" = true ]; then
+    log "Running RS batch computation..."
+    docker compose exec -T backend python -m scripts.compute_rs_batch 2>&1 | tail -10 | tee -a "$LOG_FILE" || log "WARN: RS batch computation failed"
+fi
+
 # Wait and verify
 sleep 10
-HEALTH=$(curl -s http://localhost:8009/health 2>/dev/null || echo '{"status":"error"}')
+HEALTH=$(curl -s http://localhost:8011/health 2>/dev/null || echo '{"status":"error"}')
 log "Deploy complete. Health: $HEALTH"
 log "Deployed commit: $(git rev-parse --short HEAD)"

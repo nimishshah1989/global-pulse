@@ -12,7 +12,7 @@ set -euo pipefail
 
 SERVER="13.206.34.214"
 KEY="~/.ssh/jsl-wealth-key.pem"
-PROJECT_DIR="/home/ubuntu/momentum-compass"
+PROJECT_DIR="/home/ubuntu/global-pulse"
 BRANCH="claude/review-and-plan-architecture-6aWr1"
 REPO="https://github.com/nimishshah1989/global-pulse.git"
 
@@ -38,11 +38,11 @@ else
 fi
 
 # Create env files
-echo 'POSTGRES_PASSWORD=compass_secure_2024' > .env
+echo 'POSTGRES_PASSWORD=compass_secure_2026' > .env
 
 if [ ! -f backend/.env ]; then
     cat > backend/.env << 'ENVEOF'
-DATABASE_URL=postgresql+asyncpg://compass:compass_secure_2024@db:5432/momentum_compass
+DATABASE_URL=postgresql+asyncpg://compass:compass_secure_2026@db:5432/momentum_compass
 REDIS_URL=redis://redis:6379
 STOOQ_BASE_URL=https://stooq.com/q/d/l/
 DATA_REFRESH_HOUR=2
@@ -67,7 +67,7 @@ echo ""
 echo "[3/4] Setting up auto-deploy cron..."
 ssh -i "$KEY" ubuntu@"$SERVER" << 'REMOTE_SCRIPT'
 set -e
-PROJECT_DIR="/home/ubuntu/momentum-compass"
+PROJECT_DIR="/home/ubuntu/global-pulse"
 
 # Make deploy script executable
 chmod +x "$PROJECT_DIR/scripts/auto-deploy.sh"
@@ -86,10 +86,10 @@ echo "Container status:"
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | grep compass
 echo ""
 echo "Backend health:"
-curl -s http://localhost:8009/health
+curl -s http://localhost:8011/health
 echo ""
 echo "Latest commit:"
-cd /home/ubuntu/momentum-compass && git log --oneline -1
+cd /home/ubuntu/global-pulse && git log --oneline -1
 REMOTE_SCRIPT
 
 echo ""
@@ -97,8 +97,8 @@ echo "========================================="
 echo "  AUTO-DEPLOY IS NOW ACTIVE"
 echo "========================================="
 echo ""
-echo "  Frontend: http://13.206.34.214:8109"
-echo "  API:      http://13.206.34.214:8009"
+echo "  Frontend: http://13.206.34.214:8010"
+echo "  API:      http://13.206.34.214:8011"
 echo ""
 echo "  From now on, every git push to"
 echo "  '$BRANCH'"
