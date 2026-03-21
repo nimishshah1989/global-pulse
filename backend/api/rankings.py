@@ -1,7 +1,9 @@
 """Ranking endpoints v2 — country, sector, stock, and ETF rankings.
 
-Uses the simplified 3-indicator RS engine with action matrix.
-Supports benchmark parameter for ratio return computation.
+Uses the v2 RS engine with real RS computation from prices:
+  RS Score = ((rs_line / rs_ma) - 1.0) * 1000 + 50, clipped [0, 100]
+  Volume via OBV (On-Balance Volume).
+Supports benchmark and period parameters.
 """
 from __future__ import annotations
 
@@ -32,12 +34,15 @@ def _get_ranking_service(session: AsyncSession) -> RankingService:
 async def get_country_rankings(
     as_of: date | None = Query(None, description="Historical date (YYYY-MM-DD)"),
     benchmark: str | None = Query(None, description="Benchmark instrument ID (e.g. ACWI, SPX, GLD)"),
+    period: str | None = Query("3m", description="RS calculation period: 1m, 3m, 6m, 12m"),
     session: AsyncSession = Depends(get_db),
 ) -> ApiResponse[list[RankingItemV2]]:
     """Return RS rankings for all country indices."""
     try:
         service = _get_ranking_service(session)
-        items = await service.get_country_rankings(as_of=as_of, benchmark=benchmark)
+        items = await service.get_country_rankings(
+            as_of=as_of, benchmark=benchmark, period=period or "3m",
+        )
         return ApiResponse(
             data=items,
             meta=Meta(timestamp=datetime.now(tz=timezone.utc), count=len(items)),
@@ -52,13 +57,14 @@ async def get_sector_rankings(
     country_code: str,
     as_of: date | None = Query(None, description="Historical date (YYYY-MM-DD)"),
     benchmark: str | None = Query(None, description="Benchmark instrument ID"),
+    period: str | None = Query("3m", description="RS calculation period: 1m, 3m, 6m, 12m"),
     session: AsyncSession = Depends(get_db),
 ) -> ApiResponse[list[RankingItemV2]]:
     """Return RS rankings for sectors within a country."""
     try:
         service = _get_ranking_service(session)
         items = await service.get_sector_rankings(
-            country_code, as_of=as_of, benchmark=benchmark,
+            country_code, as_of=as_of, benchmark=benchmark, period=period or "3m",
         )
         return ApiResponse(
             data=items,
@@ -76,13 +82,14 @@ async def get_stock_rankings(
     country_code: str,
     sector: str,
     benchmark: str | None = Query(None, description="Benchmark instrument ID"),
+    period: str | None = Query("3m", description="RS calculation period: 1m, 3m, 6m, 12m"),
     session: AsyncSession = Depends(get_db),
 ) -> ApiResponse[list[RankingItemV2]]:
     """Return RS rankings for stocks in a country+sector."""
     try:
         service = _get_ranking_service(session)
         items = await service.get_stock_rankings(
-            country_code, sector, benchmark=benchmark,
+            country_code, sector, benchmark=benchmark, period=period or "3m",
         )
         return ApiResponse(
             data=items,
@@ -98,12 +105,15 @@ async def get_stock_rankings(
 @router.get("/global-sectors")
 async def get_global_sector_rankings(
     benchmark: str | None = Query(None, description="Benchmark instrument ID"),
+    period: str | None = Query("3m", description="RS calculation period: 1m, 3m, 6m, 12m"),
     session: AsyncSession = Depends(get_db),
 ) -> ApiResponse[list[RankingItemV2]]:
     """Return RS rankings for global sector ETFs."""
     try:
         service = _get_ranking_service(session)
-        items = await service.get_global_sector_rankings(benchmark=benchmark)
+        items = await service.get_global_sector_rankings(
+            benchmark=benchmark, period=period or "3m",
+        )
         return ApiResponse(
             data=items,
             meta=Meta(timestamp=datetime.now(tz=timezone.utc), count=len(items)),
@@ -115,12 +125,13 @@ async def get_global_sector_rankings(
 
 @router.get("/etfs")
 async def get_all_etf_rankings(
+    period: str | None = Query("3m", description="RS calculation period: 1m, 3m, 6m, 12m"),
     session: AsyncSession = Depends(get_db),
 ) -> ApiResponse[list[RankingItemV2]]:
     """Return all ETF rankings — the main investable output."""
     try:
         service = _get_ranking_service(session)
-        items = await service.get_all_etf_rankings()
+        items = await service.get_all_etf_rankings(period=period or "3m")
         return ApiResponse(
             data=items,
             meta=Meta(timestamp=datetime.now(tz=timezone.utc), count=len(items)),
@@ -136,6 +147,7 @@ async def get_top_etfs(
     country: str | None = Query(None, description="Filter by country code"),
     sector: str | None = Query(None, description="Filter by sector slug"),
     limit: int = Query(50, ge=1, le=500),
+    period: str | None = Query("3m", description="RS calculation period: 1m, 3m, 6m, 12m"),
     session: AsyncSession = Depends(get_db),
 ) -> ApiResponse[list[RankingItemV2]]:
     """Return top ETFs with optional filters — the primary decision screen."""
@@ -146,6 +158,7 @@ async def get_top_etfs(
             country_filter=country,
             sector_filter=sector,
             limit=limit,
+            period=period or "3m",
         )
         return ApiResponse(
             data=items,

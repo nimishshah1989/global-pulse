@@ -1,12 +1,15 @@
 """Ranking repository v2 — RS score queries using the 3-indicator system.
 
 Queries rs_scores table and maps to v2 format (action matrix instead of quadrants).
-Includes ratio return computation from prices table.
+Includes real-time RS computation from prices table using v2 formula:
+  RS Score = ((rs_line / rs_ma) - 1.0) * 1000 + 50, clipped [0, 100]
+  Volume via OBV (On-Balance Volume) instead of SMA ratio.
 """
 from __future__ import annotations
 
 import datetime
 import logging
+from collections import defaultdict
 from typing import Any
 
 from sqlalchemy import select, func, and_
@@ -114,7 +117,7 @@ SECTOR_GROUP_MAP: dict[str, list[str]] = {
 # ---------------------------------------------------------------------------
 # 3-Gate Action Engine (matches MarketPulse exactly)
 # G1: Absolute return > 0? (is price going up?)
-# G2: RS Score > 50? (outperforming benchmark? — 50 is the peer-group median)
+# G2: RS Score > 50? (v2: RS line above its MA — actually outperforming benchmark)
 # G3: Momentum > 0? (is RS getting stronger?)
 # ---------------------------------------------------------------------------
 
@@ -286,6 +289,90 @@ _BENCHMARK_ID_MAP: dict[str, str] = {
 }
 
 
+def _compute_rs_from_prices(
+    asset_prices: list[tuple[datetime.date, float]],
+    bench_prices: list[tuple[datetime.date, float]],
+    ma_period: int = 63,
+) -> tuple[float, float, float]:
+    """Compute RS score, RS momentum, and RS line from price series.
+
+    Uses v2 formula: RS Score = ((rs_line / rs_ma) - 1.0) * 1000 + 50, clipped [0, 100].
+    RS line above its MA => score > 50 => actually outperforming (not just percentile).
+
+    Returns (rs_score, rs_momentum, rs_line_latest).
+    """
+    # Build date-aligned RS line
+    bench_map: dict[datetime.date, float] = {d: c for d, c in bench_prices}
+    rs_values: list[tuple[datetime.date, float]] = []
+    for d, close in asset_prices:
+        if d in bench_map and bench_map[d] > 0:
+            rs_values.append((d, close / bench_map[d] * 100))
+
+    if len(rs_values) < ma_period:
+        return 50.0, 0.0, 100.0
+
+    # RS MA over ma_period
+    recent_rs = [v for _, v in rs_values[-ma_period:]]
+    rs_ma = sum(recent_rs) / len(recent_rs)
+    rs_line = rs_values[-1][1]
+
+    # RS Score (v2 formula)
+    if rs_ma > 0:
+        rs_score = ((rs_line / rs_ma) - 1.0) * 1000 + 50
+        rs_score = max(0.0, min(100.0, round(rs_score, 2)))
+    else:
+        rs_score = 50.0
+
+    # RS Momentum (20-day lookback of RS score)
+    if len(rs_values) >= ma_period + 20:
+        old_rs = [v for _, v in rs_values[-(ma_period + 20):-20]]
+        old_ma = sum(old_rs[-ma_period:]) / ma_period if len(old_rs) >= ma_period else rs_ma
+        if old_ma > 0:
+            old_score = ((rs_values[-21][1] / old_ma) - 1.0) * 1000 + 50
+            old_score = max(0.0, min(100.0, round(old_score, 2)))
+        else:
+            old_score = 50.0
+        rs_momentum = round(rs_score - old_score, 2)
+    else:
+        rs_momentum = 0.0
+
+    return rs_score, rs_momentum, rs_line
+
+
+def _compute_obv_signal(
+    price_list: list[tuple[datetime.date, float, int | None]],
+) -> str:
+    """Compute OBV-based volume character from price+volume series.
+
+    Returns 'ACCUMULATION' if OBV > OBV 20-day MA, else 'DISTRIBUTION'.
+    price_list: [(date, close, volume), ...] sorted by date ascending.
+    """
+    if len(price_list) < 21:
+        return "ACCUMULATION"  # Not enough data, neutral default
+
+    # Compute OBV series
+    obv_series: list[int] = [0]
+    for i in range(1, len(price_list)):
+        vol = price_list[i][2] or 0
+        prev_close = price_list[i - 1][1]
+        curr_close = price_list[i][1]
+        if curr_close > prev_close:
+            obv_series.append(obv_series[-1] + vol)
+        elif curr_close < prev_close:
+            obv_series.append(obv_series[-1] - vol)
+        else:
+            obv_series.append(obv_series[-1])
+
+    # OBV MA over last 20 values
+    if len(obv_series) >= 20:
+        obv_ma = sum(obv_series[-20:]) / 20
+    else:
+        obv_ma = sum(obv_series) / len(obv_series)
+
+    obv_latest = obv_series[-1]
+    return "ACCUMULATION" if obv_latest > obv_ma else "DISTRIBUTION"
+
+
 class RankingRepository:
     """Repository for v2 RS score rankings, DB-backed."""
 
@@ -297,20 +384,27 @@ class RankingRepository:
         self,
         items: list[dict[str, Any]],
         benchmark_override: str | None = None,
+        period: str = "3m",
     ) -> list[dict[str, Any]]:
-        """Enrich ranking items with ratio returns from prices table.
+        """Enrich ranking items with v2 RS scores computed from prices.
 
-        Computes actual % returns for 1M, 3M, 6M, 12M and excess vs benchmark.
+        Replaces DB percentile scores with real RS computation:
+        - RS Score = ((rs_line / rs_ma) - 1.0) * 1000 + 50, clipped [0, 100]
+        - OBV-based volume character instead of SMA ratio
+        - Computes actual % returns for 1M, 3M, 6M, 12M and excess vs benchmark.
         """
         if not items or self._session is None:
             return items
+
+        # Resolve MA period from the period parameter
+        ma_period = _PERIOD_DAYS.get(period, 63)
 
         # Resolve benchmark override to actual prices table ID
         resolved_override = _BENCHMARK_ID_MAP.get(benchmark_override, benchmark_override) if benchmark_override else None
 
         # Collect all instrument IDs + their benchmarks
         inst_ids = [it["instrument_id"] for it in items]
-        bench_ids = set()
+        bench_ids: set[str] = set()
         for it in items:
             bid = resolved_override or _BENCHMARK_ID_MAP.get(it.get("benchmark_id", ""), it.get("benchmark_id"))
             if bid:
@@ -319,11 +413,11 @@ class RankingRepository:
         bench_ids.add("ACWI")
         all_ids = list(set(inst_ids) | bench_ids)
 
-        # Fetch recent prices for all instruments (last 260 trading days)
+        # Fetch recent prices for all instruments (last ~400 calendar days)
         cutoff = datetime.date.today() - datetime.timedelta(days=400)
         try:
             stmt = (
-                select(Price.instrument_id, Price.date, Price.close)
+                select(Price.instrument_id, Price.date, Price.close, Price.volume)
                 .where(Price.instrument_id.in_(all_ids))
                 .where(Price.date >= cutoff)
                 .order_by(Price.instrument_id, Price.date)
@@ -334,18 +428,20 @@ class RankingRepository:
             logger.debug("Failed to fetch prices for returns: %s", e)
             return items
 
-        # Build price lookup: {instrument_id: [(date, close), ...]}
-        from collections import defaultdict
+        # Build price lookups
         prices: dict[str, list[tuple[datetime.date, float]]] = defaultdict(list)
-        for iid, dt, close in rows:
-            prices[iid].append((dt, float(close)))
+        prices_with_volume: dict[str, list[tuple[datetime.date, float, int | None]]] = defaultdict(list)
+        for iid, dt, close, volume in rows:
+            c = float(close)
+            v = int(volume) if volume is not None else None
+            prices[iid].append((dt, c))
+            prices_with_volume[iid].append((dt, c, v))
 
         def _compute_return(price_list: list[tuple[datetime.date, float]], days: int) -> float | None:
             """Compute simple return over approximately N trading days."""
             if len(price_list) < 2:
                 return None
             latest_close = price_list[-1][1]
-            # Find the price closest to N trading days ago
             target_idx = max(0, len(price_list) - days - 1)
             if target_idx >= len(price_list) - 1:
                 return None
@@ -367,7 +463,23 @@ class RankingRepository:
             iid = it["instrument_id"]
             bid = resolved_override or _BENCHMARK_ID_MAP.get(it.get("benchmark_id", ""), it.get("benchmark_id"))
             asset_prices = prices.get(iid, [])
+            bench_prices = prices.get(bid, []) if bid else []
 
+            # --- V2 RS computation from prices ---
+            if asset_prices and bench_prices:
+                rs_score, rs_momentum, rs_line = _compute_rs_from_prices(
+                    asset_prices, bench_prices, ma_period=ma_period,
+                )
+                it["rs_score"] = rs_score
+                it["rs_momentum"] = rs_momentum
+                it["quadrant"] = _classify_quadrant(rs_score, rs_momentum)
+
+            # --- OBV-based volume signal ---
+            asset_pv = prices_with_volume.get(iid, [])
+            if asset_pv:
+                it["volume_signal"] = _compute_obv_signal(asset_pv)
+
+            # --- Standard return calculations ---
             for period_key, days in _PERIOD_DAYS.items():
                 ret = _compute_return(asset_prices, days)
                 it[f"return_{period_key}"] = ret
@@ -383,30 +495,10 @@ class RankingRepository:
             it["absolute_return"] = abs_ret
             it["relative_return"] = it.get("excess_3m") or it.get("excess_1m")
 
-            # Recalculate volume_signal with actual price direction
-            price_rising = (abs_ret or 0) > 0
-            vol_ratio_val = 1.0
-            # Re-derive from rs_score fields already in the dict
-            vol_signal = _compute_volume_signal(vol_ratio_val, price_rising)
-            # Only update volume_signal if we have actual return data
-            if abs_ret is not None:
-                # Need the original volume_ratio — approximate from existing signal
-                # Keep the volume component, just update price direction
-                old_signal = it.get("volume_signal", "WEAK_DECLINE")
-                vol_rising = old_signal in ("ACCUMULATION", "DISTRIBUTION")
-                if price_rising and vol_rising:
-                    it["volume_signal"] = "ACCUMULATION"
-                elif price_rising and not vol_rising:
-                    it["volume_signal"] = "WEAK_RALLY"
-                elif not price_rising and vol_rising:
-                    it["volume_signal"] = "DISTRIBUTION"
-                else:
-                    it["volume_signal"] = "WEAK_DECLINE"
-
             # Apply computed regime
             it["regime"] = regime
 
-            # Recalculate action with actual absolute return + regime
+            # Recalculate action with v2 RS score + OBV volume + regime
             action, reason = _derive_action_gate(
                 abs_ret, it["rs_score"], it["rs_momentum"],
                 it["volume_signal"], regime,
@@ -510,16 +602,18 @@ class RankingRepository:
     async def get_country_rankings(
         self, as_of: datetime.date | None = None,
         benchmark: str | None = None,
+        period: str = "3m",
     ) -> list[dict[str, Any]]:
         """Return canonical country index rankings."""
         items = await self._get_rankings_by_ids(
             CANONICAL_COUNTRY_INDICES, as_of=as_of
         )
-        return await self._enrich_with_returns(items, benchmark_override=benchmark)
+        return await self._enrich_with_returns(items, benchmark_override=benchmark, period=period)
 
     async def get_sector_rankings(
         self, country_code: str, as_of: datetime.date | None = None,
         benchmark: str | None = None,
+        period: str = "3m",
     ) -> list[dict[str, Any]]:
         """Return sector rankings for a country.
 
@@ -530,7 +624,7 @@ class RankingRepository:
         if canonical_ids is not None:
             items = await self._get_rankings_by_ids(canonical_ids, as_of=as_of)
             if items:
-                return await self._enrich_with_returns(items, benchmark_override=benchmark)
+                return await self._enrich_with_returns(items, benchmark_override=benchmark, period=period)
 
         # Dynamic fallback: get best ETF per GICS sector in this country
         items = await self._get_rankings_filtered(
@@ -546,11 +640,12 @@ class RankingRepository:
             if sector not in seen_sectors or item["rs_score"] > seen_sectors[sector]["rs_score"]:
                 seen_sectors[sector] = item
         deduped = sorted(seen_sectors.values(), key=lambda x: x["rs_score"], reverse=True)
-        return await self._enrich_with_returns(deduped or items, benchmark_override=benchmark)
+        return await self._enrich_with_returns(deduped or items, benchmark_override=benchmark, period=period)
 
     async def get_stock_rankings(
         self, country_code: str, sector: str,
         benchmark: str | None = None,
+        period: str = "3m",
     ) -> list[dict[str, Any]]:
         """Return stock rankings for a country+sector."""
         items = await self._get_rankings_filtered(
@@ -558,16 +653,19 @@ class RankingRepository:
             asset_types=("stock",),
             sector=sector,
         )
-        return await self._enrich_with_returns(items, benchmark_override=benchmark)
+        return await self._enrich_with_returns(items, benchmark_override=benchmark, period=period)
 
     async def get_global_sector_rankings(
         self, benchmark: str | None = None,
+        period: str = "3m",
     ) -> list[dict[str, Any]]:
         """Return global sector ETF rankings."""
         items = await self._get_rankings_by_ids(CANONICAL_GLOBAL_SECTORS)
-        return await self._enrich_with_returns(items, benchmark_override=benchmark)
+        return await self._enrich_with_returns(items, benchmark_override=benchmark, period=period)
 
-    async def get_all_etf_rankings(self) -> list[dict[str, Any]]:
+    async def get_all_etf_rankings(
+        self, period: str = "3m",
+    ) -> list[dict[str, Any]]:
         """Return all ETF rankings — the main output screen."""
         items = await self._get_rankings_filtered(
             asset_types=(
@@ -575,13 +673,14 @@ class RankingRepository:
                 "etf", "regional_etf", "commodity_etf", "bond_etf",
             ),
         )
-        return await self._enrich_with_returns(items)
+        return await self._enrich_with_returns(items, period=period)
 
     async def get_top_etfs(
         self, action_filter: str | None = None,
         country_filter: str | None = None,
         sector_filter: str | None = None,
         limit: int = 50,
+        period: str = "3m",
     ) -> list[dict[str, Any]]:
         """Return top ETFs with optional action/country/sector filters."""
         if self._session is None:
@@ -636,7 +735,7 @@ class RankingRepository:
                 items = [i for i in items if i["action"] == action_filter]
 
             items = items[:limit]
-            return await self._enrich_with_returns(items)
+            return await self._enrich_with_returns(items, period=period)
         except Exception as e:
             logger.debug("Top ETFs query failed: %s", e)
             return []

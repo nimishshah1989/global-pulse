@@ -1,8 +1,14 @@
+import { useState, useMemo } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
 import { useSectorRankings, useCountryRankings } from '@/api/hooks/useRankings'
 import { COUNTRY_FLAGS, COUNTRY_NAMES, SECTOR_DISPLAY_NAMES } from '@/data/countryData'
 import { formatPercent } from '@/utils/format'
+import PeriodSelector from '@/components/common/PeriodSelector'
+import ActionFilter from '@/components/common/ActionFilter'
+import ViewToggle from '@/components/common/ViewToggle'
+import type { Period } from '@/components/common/PeriodSelector'
+import type { ViewMode } from '@/components/common/ViewToggle'
 import type { RankingItem, Action } from '@/types/rs'
 import { actionLabel, watchSubLabel, volumeLabel } from '@/types/rs'
 
@@ -178,16 +184,84 @@ function SectorScatter({ items, onItemClick }: { items: RankingItem[]; onItemCli
   )
 }
 
+function SectorTable({ items, onItemClick }: { items: RankingItem[]; onItemClick: (item: RankingItem) => void }): JSX.Element {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+        <span className="text-sm font-semibold text-slate-700">Sector Rankings</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-200">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Sector</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Action</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">RS %</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Abs %</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Momentum</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Volume</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">1M</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">3M</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">6M</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => {
+              const sectorName = SECTOR_DISPLAY_NAMES[item.sector ?? ''] ?? item.sector ?? item.name
+              const rsColor = (item.rs_score - 50) > 0 ? 'text-emerald-600' : 'text-red-600'
+              const momColor = (item.rs_momentum ?? 0) > 0 ? 'text-emerald-600' : 'text-red-600'
+
+              return (
+                <tr
+                  key={item.instrument_id}
+                  className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors"
+                  onClick={() => onItemClick(item)}
+                >
+                  <td className="px-4 py-3">
+                    <div className="text-sm font-semibold text-slate-900">{sectorName}</div>
+                    <div className="text-xs text-slate-400 font-mono">{item.instrument_id}</div>
+                  </td>
+                  <td className="px-3 py-3 text-center"><ActionBadge action={item.action} /></td>
+                  <td className={`px-3 py-3 text-center font-mono text-sm ${rsColor}`}>{item.rs_score.toFixed(1)}</td>
+                  <td className="px-3 py-3 text-center"><ReturnBadge value={item.absolute_return} /></td>
+                  <td className={`px-3 py-3 text-center font-mono text-sm ${momColor}`}>{(item.rs_momentum ?? 0).toFixed(1)}</td>
+                  <td className="px-3 py-3 text-center text-xs text-slate-500">{volumeLabel(item.volume_signal)}</td>
+                  <td className="px-3 py-3 text-center"><ReturnBadge value={item.return_1m} /></td>
+                  <td className="px-3 py-3 text-center"><ReturnBadge value={item.return_3m} /></td>
+                  <td className="px-3 py-3 text-center"><ReturnBadge value={item.return_6m} /></td>
+                  <td className="px-3 py-3 text-xs text-slate-400 italic max-w-[200px] truncate">{item.action_reason ?? '--'}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 export default function Sectors(): JSX.Element {
   const { countryCode } = useParams<{ countryCode: string }>()
   const navigate = useNavigate()
   const code = countryCode ?? ''
-  const { data: sectors, isLoading, error } = useSectorRankings(code)
-  const { data: countries } = useCountryRankings()
+
+  const [period, setPeriod] = useState<Period>('3m')
+  const [actionFilter, setActionFilter] = useState<Action | null>(null)
+  const [view, setView] = useState<ViewMode>('kanban')
+
+  const { data: sectors, isLoading, error } = useSectorRankings(code, null, null, period)
+  const { data: countries } = useCountryRankings(null, null, period)
 
   const country = countries?.find((c) => c.country === code)
   const flag = COUNTRY_FLAGS[code] ?? ''
   const countryName = COUNTRY_NAMES[code] ?? code
+
+  const filtered = useMemo(() => {
+    if (!sectors) return []
+    if (!actionFilter) return sectors
+    return sectors.filter((s) => s.action === actionFilter)
+  }, [sectors, actionFilter])
 
   const handleSectorClick = (item: RankingItem) => {
     navigate(`/compass/country/${code}/sector/${item.sector ?? item.instrument_id}`)
@@ -204,7 +278,7 @@ export default function Sectors(): JSX.Element {
 
       {/* Country Summary Card */}
       {country && (
-        <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+        <div className="bg-white rounded-xl border border-slate-200 p-5 mb-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
               <span className="text-3xl">{flag}</span>
@@ -243,73 +317,33 @@ export default function Sectors(): JSX.Element {
         </div>
       )}
 
+      {/* Controls bar */}
+      <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
+          <PeriodSelector value={period} onChange={setPeriod} />
+          <div className="w-px h-6 bg-slate-200" />
+          <ActionFilter value={actionFilter} onChange={setActionFilter} />
+        </div>
+        <ViewToggle value={view} onChange={setView} />
+      </div>
+
       {/* Loading / Error */}
       {isLoading && <div className="flex items-center justify-center h-48 text-slate-400">Loading sector data...</div>}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">Failed to load sector rankings.</div>
       )}
 
-      {sectors && sectors.length > 0 && (
+      {filtered.length > 0 && (
         <div className="space-y-6">
-          {/* Action Board */}
-          <SectorActionBoard items={sectors} onItemClick={handleSectorClick} />
+          {/* Action Board or Table */}
+          {view === 'kanban' ? (
+            <SectorActionBoard items={filtered} onItemClick={handleSectorClick} />
+          ) : (
+            <SectorTable items={filtered} onItemClick={handleSectorClick} />
+          )}
 
           {/* Scatter Chart */}
-          <SectorScatter items={sectors} onItemClick={handleSectorClick} />
-
-          {/* Ranking Table */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
-              <span className="text-sm font-semibold text-slate-700">Sector Rankings</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Sector</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Action</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">RS %</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Abs %</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Momentum</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Volume</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">1M</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">3M</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">6M</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Reason</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sectors.map((item) => {
-                    const sectorName = SECTOR_DISPLAY_NAMES[item.sector ?? ''] ?? item.sector ?? item.name
-                    const rsColor = (item.rs_score - 50) > 0 ? 'text-emerald-600' : 'text-red-600'
-                    const momColor = (item.rs_momentum ?? 0) > 0 ? 'text-emerald-600' : 'text-red-600'
-
-                    return (
-                      <tr
-                        key={item.instrument_id}
-                        className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors"
-                        onClick={() => handleSectorClick(item)}
-                      >
-                        <td className="px-4 py-3">
-                          <div className="text-sm font-semibold text-slate-900">{sectorName}</div>
-                          <div className="text-xs text-slate-400 font-mono">{item.instrument_id}</div>
-                        </td>
-                        <td className="px-3 py-3 text-center"><ActionBadge action={item.action} /></td>
-                        <td className={`px-3 py-3 text-center font-mono text-sm ${rsColor}`}>{item.rs_score.toFixed(1)}</td>
-                        <td className="px-3 py-3 text-center"><ReturnBadge value={item.absolute_return} /></td>
-                        <td className={`px-3 py-3 text-center font-mono text-sm ${momColor}`}>{(item.rs_momentum ?? 0).toFixed(1)}</td>
-                        <td className="px-3 py-3 text-center text-xs text-slate-500">{volumeLabel(item.volume_signal)}</td>
-                        <td className="px-3 py-3 text-center"><ReturnBadge value={item.return_1m} /></td>
-                        <td className="px-3 py-3 text-center"><ReturnBadge value={item.return_3m} /></td>
-                        <td className="px-3 py-3 text-center"><ReturnBadge value={item.return_6m} /></td>
-                        <td className="px-3 py-3 text-xs text-slate-400 italic max-w-[200px] truncate">{item.action_reason ?? '--'}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <SectorScatter items={filtered} onItemClick={handleSectorClick} />
         </div>
       )}
 

@@ -1,9 +1,15 @@
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
 import { useCountryRankings } from '@/api/hooks/useRankings'
 import { useRegime } from '@/api/hooks/useRegime'
 import { COUNTRY_FLAGS, COUNTRY_NAMES } from '@/data/countryData'
 import { formatPercent } from '@/utils/format'
+import PeriodSelector from '@/components/common/PeriodSelector'
+import ActionFilter from '@/components/common/ActionFilter'
+import ViewToggle from '@/components/common/ViewToggle'
+import type { Period } from '@/components/common/PeriodSelector'
+import type { ViewMode } from '@/components/common/ViewToggle'
 import type { RankingItem, Action, MarketRegime } from '@/types/rs'
 import { actionLabel, watchSubLabel, volumeLabel, regimeLabel } from '@/types/rs'
 
@@ -200,13 +206,84 @@ function CountryScatter({ items, onItemClick }: { items: RankingItem[]; onItemCl
   )
 }
 
+// Country Ranking Table
+function CountryTable({ items, onItemClick }: { items: RankingItem[]; onItemClick: (item: RankingItem) => void }): JSX.Element {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+        <span className="text-sm font-semibold text-slate-700">Country Rankings</span>
+        <span className="text-xs text-slate-400 ml-2">({items.length} countries)</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-200">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Country</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Action</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">RS %</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Abs %</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Momentum</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Volume</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">1M</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">3M</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">6M</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => {
+              const code = item.country ?? ''
+              const rsColor = (item.rs_score - 50) > 0 ? 'text-emerald-600' : 'text-red-600'
+              const momColor = (item.rs_momentum ?? 0) > 0 ? 'text-emerald-600' : 'text-red-600'
+
+              return (
+                <tr
+                  key={item.instrument_id}
+                  className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors"
+                  onClick={() => onItemClick(item)}
+                >
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">{COUNTRY_FLAGS[code] ?? ''}</span>
+                      <span className="text-sm font-semibold text-slate-900">{COUNTRY_NAMES[code] ?? item.name}</span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 text-center"><ActionBadge action={item.action} /></td>
+                  <td className={`px-3 py-3 text-center font-mono text-sm ${rsColor}`}>{item.rs_score.toFixed(1)}</td>
+                  <td className="px-3 py-3 text-center"><ReturnBadge value={item.absolute_return} /></td>
+                  <td className={`px-3 py-3 text-center font-mono text-sm ${momColor}`}>{(item.rs_momentum ?? 0).toFixed(1)}</td>
+                  <td className="px-3 py-3 text-center text-xs text-slate-500">{volumeLabel(item.volume_signal)}</td>
+                  <td className="px-3 py-3 text-center"><ReturnBadge value={item.return_1m} /></td>
+                  <td className="px-3 py-3 text-center"><ReturnBadge value={item.return_3m} /></td>
+                  <td className="px-3 py-3 text-center"><ReturnBadge value={item.return_6m} /></td>
+                  <td className="px-3 py-3 text-xs text-slate-400 italic max-w-[200px] truncate">{item.action_reason ?? '--'}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 export default function Countries(): JSX.Element {
   const navigate = useNavigate()
-  const { data: countries, isLoading, error } = useCountryRankings()
+  const [period, setPeriod] = useState<Period>('3m')
+  const [actionFilter, setActionFilter] = useState<Action | null>(null)
+  const [view, setView] = useState<ViewMode>('kanban')
+
+  const { data: countries, isLoading, error } = useCountryRankings(null, null, period)
   const { data: regimeData } = useRegime()
 
   const regime = (regimeData?.regime ?? 'BULL') as MarketRegime
   const rCfg = REGIME_CONFIG[regime] ?? REGIME_CONFIG.BULL
+
+  const filtered = useMemo(() => {
+    if (!countries) return []
+    if (!actionFilter) return countries
+    return countries.filter((c) => c.action === actionFilter)
+  }, [countries, actionFilter])
 
   const handleClick = (item: RankingItem) => {
     navigate(`/compass/country/${item.country}`)
@@ -215,7 +292,7 @@ export default function Countries(): JSX.Element {
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Global Pulse</h1>
           <p className="text-sm text-slate-500 mt-1">Country relative strength vs ACWI benchmark</p>
@@ -223,6 +300,16 @@ export default function Countries(): JSX.Element {
         <div className={`px-4 py-2 rounded-lg text-sm font-semibold ${rCfg.bg} ${rCfg.text}`}>
           {regimeLabel(regime)}
         </div>
+      </div>
+
+      {/* Controls bar */}
+      <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
+          <PeriodSelector value={period} onChange={setPeriod} />
+          <div className="w-px h-6 bg-slate-200" />
+          <ActionFilter value={actionFilter} onChange={setActionFilter} />
+        </div>
+        <ViewToggle value={view} onChange={setView} />
       </div>
 
       {/* Loading / Error */}
@@ -235,70 +322,17 @@ export default function Countries(): JSX.Element {
         </div>
       )}
 
-      {countries && countries.length > 0 && (
+      {filtered.length > 0 && (
         <div className="space-y-6">
-          {/* Action Board */}
-          <ActionBoard items={countries} onItemClick={handleClick} />
+          {/* Action Board or Table based on view toggle */}
+          {view === 'kanban' ? (
+            <ActionBoard items={filtered} onItemClick={handleClick} />
+          ) : (
+            <CountryTable items={filtered} onItemClick={handleClick} />
+          )}
 
           {/* Scatter Chart */}
-          <CountryScatter items={countries} onItemClick={handleClick} />
-
-          {/* Ranking Table */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
-              <span className="text-sm font-semibold text-slate-700">Country Rankings</span>
-              <span className="text-xs text-slate-400 ml-2">({countries.length} countries)</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Country</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Action</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">RS %</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Abs %</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Momentum</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Volume</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">1M</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">3M</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">6M</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Reason</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {countries.map((item) => {
-                    const code = item.country ?? ''
-                    const rsColor = (item.rs_score - 50) > 0 ? 'text-emerald-600' : 'text-red-600'
-                    const momColor = (item.rs_momentum ?? 0) > 0 ? 'text-emerald-600' : 'text-red-600'
-
-                    return (
-                      <tr
-                        key={item.instrument_id}
-                        className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors"
-                        onClick={() => handleClick(item)}
-                      >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm">{COUNTRY_FLAGS[code] ?? ''}</span>
-                            <span className="text-sm font-semibold text-slate-900">{COUNTRY_NAMES[code] ?? item.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-3 text-center"><ActionBadge action={item.action} /></td>
-                        <td className={`px-3 py-3 text-center font-mono text-sm ${rsColor}`}>{item.rs_score.toFixed(1)}</td>
-                        <td className="px-3 py-3 text-center"><ReturnBadge value={item.absolute_return} /></td>
-                        <td className={`px-3 py-3 text-center font-mono text-sm ${momColor}`}>{(item.rs_momentum ?? 0).toFixed(1)}</td>
-                        <td className="px-3 py-3 text-center text-xs text-slate-500">{volumeLabel(item.volume_signal)}</td>
-                        <td className="px-3 py-3 text-center"><ReturnBadge value={item.return_1m} /></td>
-                        <td className="px-3 py-3 text-center"><ReturnBadge value={item.return_3m} /></td>
-                        <td className="px-3 py-3 text-center"><ReturnBadge value={item.return_6m} /></td>
-                        <td className="px-3 py-3 text-xs text-slate-400 italic max-w-[200px] truncate">{item.action_reason ?? '--'}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <CountryScatter items={filtered} onItemClick={handleClick} />
         </div>
       )}
 

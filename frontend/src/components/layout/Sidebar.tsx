@@ -7,7 +7,11 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/compass', icon: '\uD83C\uDF0D', label: 'Countries' },
+  { to: '/compass', icon: '\uD83C\uDF0D', label: 'Global Pulse' },
+  { to: '/compass/sectors', icon: '\uD83D\uDCCA', label: 'Sector Scanner' },
+  { to: '/compass/etfs', icon: '\uD83D\uDCC8', label: 'ETF Scanner' },
+  { to: '/compass/portfolio', icon: '\uD83D\uDCBC', label: 'Model Portfolio' },
+  { to: '/compass/signals', icon: '\uD83C\uDFAF', label: 'Signals' },
 ]
 
 export default function Sidebar(): JSX.Element {

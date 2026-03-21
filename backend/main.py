@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.baskets import router as baskets_router
 from api.instruments import router as instruments_router
 from api.opportunities import router as opportunities_router
+from api.portfolio import router as portfolio_router
 from api.rankings import router as rankings_router
 from api.rrg import router as rrg_router
 from api.system import router as system_router
@@ -84,6 +85,7 @@ app.include_router(instruments_router)
 app.include_router(rankings_router)
 app.include_router(rrg_router)
 app.include_router(baskets_router)
+app.include_router(portfolio_router)
 app.include_router(opportunities_router)
 
 

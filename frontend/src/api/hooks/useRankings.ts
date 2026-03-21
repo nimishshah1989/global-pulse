@@ -2,26 +2,37 @@ import { useQuery } from '@tanstack/react-query'
 import apiClient from '@/api/client'
 import type { RankingItem } from '@/types/rs'
 
-export function useCountryRankings(asOf?: string | null, benchmark?: string | null) {
+export function useCountryRankings(
+  asOf?: string | null,
+  benchmark?: string | null,
+  period?: string,
+) {
   return useQuery<RankingItem[]>({
-    queryKey: ['rankings', 'countries', asOf ?? 'live', benchmark ?? 'default'],
+    queryKey: ['rankings', 'countries', asOf ?? 'live', benchmark ?? 'default', period ?? '3m'],
     queryFn: async () => {
       const params: Record<string, string> = {}
       if (asOf) params.as_of = asOf
       if (benchmark) params.benchmark = benchmark
+      if (period) params.period = period
       const response = await apiClient.get<RankingItem[]>('/rankings/countries', { params })
       return response.data
     },
   })
 }
 
-export function useSectorRankings(countryCode: string, asOf?: string | null, benchmark?: string | null) {
+export function useSectorRankings(
+  countryCode: string,
+  asOf?: string | null,
+  benchmark?: string | null,
+  period?: string,
+) {
   return useQuery<RankingItem[]>({
-    queryKey: ['rankings', 'sectors', countryCode, asOf ?? 'live', benchmark ?? 'default'],
+    queryKey: ['rankings', 'sectors', countryCode, asOf ?? 'live', benchmark ?? 'default', period ?? '3m'],
     queryFn: async () => {
       const params: Record<string, string> = {}
       if (asOf) params.as_of = asOf
       if (benchmark) params.benchmark = benchmark
+      if (period) params.period = period
       const response = await apiClient.get<RankingItem[]>(`/rankings/sectors/${countryCode}`, { params })
       return response.data
     },
@@ -29,12 +40,18 @@ export function useSectorRankings(countryCode: string, asOf?: string | null, ben
   })
 }
 
-export function useStockRankings(countryCode: string, sector: string, benchmark?: string | null) {
+export function useStockRankings(
+  countryCode: string,
+  sector: string,
+  benchmark?: string | null,
+  period?: string,
+) {
   return useQuery<RankingItem[]>({
-    queryKey: ['rankings', 'stocks', countryCode, sector, benchmark ?? 'default'],
+    queryKey: ['rankings', 'stocks', countryCode, sector, benchmark ?? 'default', period ?? '3m'],
     queryFn: async () => {
       const params: Record<string, string> = {}
       if (benchmark) params.benchmark = benchmark
+      if (period) params.period = period
       const response = await apiClient.get<RankingItem[]>(
         `/rankings/stocks/${countryCode}/${sector}`,
         { params },
@@ -45,12 +62,13 @@ export function useStockRankings(countryCode: string, sector: string, benchmark?
   })
 }
 
-export function useGlobalSectorRankings(benchmark?: string | null) {
+export function useGlobalSectorRankings(benchmark?: string | null, period?: string) {
   return useQuery<RankingItem[]>({
-    queryKey: ['rankings', 'global-sectors', benchmark ?? 'default'],
+    queryKey: ['rankings', 'global-sectors', benchmark ?? 'default', period ?? '3m'],
     queryFn: async () => {
       const params: Record<string, string> = {}
       if (benchmark) params.benchmark = benchmark
+      if (period) params.period = period
       const response = await apiClient.get<RankingItem[]>('/rankings/global-sectors', { params })
       return response.data
     },
@@ -62,14 +80,16 @@ export function useTopETFs(
   country?: string,
   sector?: string,
   limit: number = 50,
+  period?: string,
 ) {
   return useQuery<RankingItem[]>({
-    queryKey: ['rankings', 'etfs', 'top', action, country, sector, limit],
+    queryKey: ['rankings', 'etfs', 'top', action, country, sector, limit, period ?? '3m'],
     queryFn: async () => {
       const params: Record<string, string | number> = { limit }
       if (action) params.action = action
       if (country) params.country = country
       if (sector) params.sector = sector
+      if (period) params.period = period
       const response = await apiClient.get<RankingItem[]>('/rankings/etfs/top', { params })
       return response.data
     },

@@ -1,19 +1,25 @@
+import { useState, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
 import { useTopETFs, useSectorRankings, useCountryRankings } from '@/api/hooks/useRankings'
 import { COUNTRY_FLAGS, COUNTRY_NAMES, SECTOR_DISPLAY_NAMES } from '@/data/countryData'
 import { formatPercent } from '@/utils/format'
+import PeriodSelector from '@/components/common/PeriodSelector'
+import ActionFilter from '@/components/common/ActionFilter'
+import ViewToggle from '@/components/common/ViewToggle'
+import type { Period } from '@/components/common/PeriodSelector'
+import type { ViewMode } from '@/components/common/ViewToggle'
 import type { RankingItem, Action } from '@/types/rs'
 import { actionLabel, watchSubLabel, volumeLabel } from '@/types/rs'
 
-const ACTION_CONFIG: Record<Action, { bg: string; text: string; border: string; dot: string }> = {
-  BUY:            { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200', dot: '#059669' },
-  HOLD:           { bg: 'bg-amber-100',   text: 'text-amber-700',   border: 'border-amber-200',   dot: '#d97706' },
-  WATCH_EMERGING: { bg: 'bg-blue-100',    text: 'text-blue-700',    border: 'border-blue-200',    dot: '#2563eb' },
-  WATCH_RELATIVE: { bg: 'bg-sky-100',     text: 'text-sky-700',     border: 'border-sky-200',     dot: '#0284c7' },
-  WATCH_EARLY:    { bg: 'bg-indigo-100',  text: 'text-indigo-700',  border: 'border-indigo-200',  dot: '#4f46e5' },
-  AVOID:          { bg: 'bg-orange-100',   text: 'text-orange-700',  border: 'border-orange-200',  dot: '#ea580c' },
-  SELL:           { bg: 'bg-red-100',      text: 'text-red-700',     border: 'border-red-200',     dot: '#dc2626' },
+const ACTION_CONFIG: Record<Action, { bg: string; text: string; border: string; dot: string; description: string }> = {
+  BUY:            { bg: 'bg-emerald-50',  text: 'text-emerald-700',  border: 'border-emerald-200', dot: '#059669', description: 'Rising, outperforming, and strengthening' },
+  HOLD:           { bg: 'bg-amber-50',    text: 'text-amber-700',    border: 'border-amber-200',   dot: '#d97706', description: 'Outperforming but momentum fading' },
+  WATCH_EMERGING: { bg: 'bg-blue-50',     text: 'text-blue-700',     border: 'border-blue-200',    dot: '#2563eb', description: 'Rising and strengthening, but still lagging peers' },
+  WATCH_RELATIVE: { bg: 'bg-sky-50',      text: 'text-sky-700',      border: 'border-sky-200',     dot: '#0284c7', description: 'Outperforming despite price decline' },
+  WATCH_EARLY:    { bg: 'bg-indigo-50',   text: 'text-indigo-700',   border: 'border-indigo-200',  dot: '#4f46e5', description: 'Earliest reversal — momentum just turned positive' },
+  AVOID:          { bg: 'bg-orange-50',    text: 'text-orange-700',   border: 'border-orange-200',  dot: '#ea580c', description: 'Rising but lagging with fading momentum' },
+  SELL:           { bg: 'bg-red-50',       text: 'text-red-700',      border: 'border-red-200',     dot: '#dc2626', description: 'Falling with weakening relative strength' },
 }
 
 function ActionBadge({ action }: { action: Action }): JSX.Element {
@@ -30,6 +36,59 @@ function ReturnBadge({ value }: { value: number | null }): JSX.Element {
   if (value == null) return <span className="text-slate-300 font-mono text-xs">--</span>
   const color = value > 0 ? 'text-emerald-600' : value < 0 ? 'text-red-600' : 'text-slate-500'
   return <span className={`font-mono text-xs ${color}`}>{formatPercent(value)}</span>
+}
+
+function ETFActionBoard({ items }: { items: RankingItem[] }): JSX.Element {
+  const grouped = new Map<Action, RankingItem[]>()
+  for (const item of items) {
+    const list = grouped.get(item.action) ?? []
+    list.push(item)
+    grouped.set(item.action, list)
+  }
+  for (const [, list] of grouped) list.sort((a, b) => b.rs_score - a.rs_score)
+
+  const actionOrder: Action[] = ['BUY', 'HOLD', 'WATCH_EMERGING', 'WATCH_RELATIVE', 'WATCH_EARLY', 'AVOID', 'SELL']
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+      {actionOrder.map((action) => {
+        const list = grouped.get(action)
+        if (!list || list.length === 0) return null
+        const cfg = ACTION_CONFIG[action]
+        const sub = watchSubLabel(action)
+
+        return (
+          <div key={action} className={`rounded-xl border ${cfg.border} ${cfg.bg} p-4`}>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className={`text-sm font-semibold ${cfg.text}`}>
+                {actionLabel(action)}{sub ? ` — ${sub}` : ''}
+              </h3>
+              <span className={`text-xs ${cfg.text} opacity-70`}>{list.length} ETFs</span>
+            </div>
+            <p className={`text-xs ${cfg.text} opacity-60 mb-3`}>{cfg.description}</p>
+
+            <div className="space-y-1.5">
+              {list.map((item) => (
+                <div
+                  key={item.instrument_id}
+                  className="flex items-center justify-between bg-white/70 rounded-lg px-3 py-2"
+                >
+                  <div className="truncate">
+                    <span className="text-sm font-medium text-slate-800">{item.instrument_id}</span>
+                    <span className="text-xs text-slate-400 ml-1.5 truncate">{item.name}</span>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0 ml-2">
+                    <span className="font-mono text-xs font-semibold text-slate-700">{item.rs_score.toFixed(1)}</span>
+                    <ReturnBadge value={item.absolute_return} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function ETFScatter({ items }: { items: RankingItem[] }): JSX.Element {
@@ -114,19 +173,80 @@ function ETFScatter({ items }: { items: RankingItem[] }): JSX.Element {
   )
 }
 
+function ETFTable({ items }: { items: RankingItem[] }): JSX.Element {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+        <span className="text-sm font-semibold text-slate-700">ETF Rankings</span>
+        <span className="text-xs text-slate-400 ml-2">({items.length} ETFs)</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-200">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">ETF</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Sector</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Action</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">RS %</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Abs %</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Momentum</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Volume</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => {
+              const etfSector = SECTOR_DISPLAY_NAMES[item.sector ?? ''] ?? item.sector ?? '--'
+              const rsColor = (item.rs_score - 50) > 0 ? 'text-emerald-600' : 'text-red-600'
+              const momColor = (item.rs_momentum ?? 0) > 0 ? 'text-emerald-600' : 'text-red-600'
+
+              return (
+                <tr key={item.instrument_id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="text-sm font-semibold text-slate-900">{item.instrument_id}</div>
+                    <div className="text-xs text-slate-400 truncate max-w-[200px]">{item.name}</div>
+                  </td>
+                  <td className="px-3 py-3 text-center text-xs text-slate-600">{etfSector}</td>
+                  <td className="px-3 py-3 text-center"><ActionBadge action={item.action} /></td>
+                  <td className={`px-3 py-3 text-center font-mono text-sm ${rsColor}`}>{item.rs_score.toFixed(1)}</td>
+                  <td className="px-3 py-3 text-center"><ReturnBadge value={item.absolute_return} /></td>
+                  <td className={`px-3 py-3 text-center font-mono text-sm ${momColor}`}>{(item.rs_momentum ?? 0).toFixed(1)}</td>
+                  <td className="px-3 py-3 text-center text-xs text-slate-500">{volumeLabel(item.volume_signal)}</td>
+                  <td className="px-3 py-3 text-xs text-slate-400 italic max-w-[200px] truncate">{item.action_reason ?? '--'}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 export default function ETFs(): JSX.Element {
   const { countryCode, sectorSlug } = useParams<{ countryCode: string; sectorSlug: string }>()
   const code = countryCode ?? ''
   const sector = sectorSlug ?? ''
-  const { data: etfs, isLoading, error } = useTopETFs(undefined, code, sector, 200)
-  const { data: sectors } = useSectorRankings(code)
-  const { data: countries } = useCountryRankings()
+
+  const [period, setPeriod] = useState<Period>('3m')
+  const [actionFilter, setActionFilter] = useState<Action | null>(null)
+  const [view, setView] = useState<ViewMode>('table')
+
+  const { data: etfs, isLoading, error } = useTopETFs(undefined, code, sector, 200, period)
+  const { data: sectors } = useSectorRankings(code, null, null, period)
+  const { data: countries } = useCountryRankings(null, null, period)
 
   const country = countries?.find((c) => c.country === code)
   const sectorInfo = sectors?.find((s) => s.sector === sector || s.instrument_id === sector)
   const flag = COUNTRY_FLAGS[code] ?? ''
   const countryName = COUNTRY_NAMES[code] ?? code
   const sectorName = SECTOR_DISPLAY_NAMES[sector] ?? sector
+
+  const filtered = useMemo(() => {
+    if (!etfs) return []
+    if (!actionFilter) return etfs
+    return etfs.filter((e) => e.action === actionFilter)
+  }, [etfs, actionFilter])
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
@@ -141,7 +261,7 @@ export default function ETFs(): JSX.Element {
 
       {/* Sector Summary Card */}
       {sectorInfo && (
-        <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+        <div className="bg-white rounded-xl border border-slate-200 p-5 mb-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <h1 className="text-xl font-bold text-slate-900">{sectorName}</h1>
@@ -184,63 +304,33 @@ export default function ETFs(): JSX.Element {
         </div>
       )}
 
+      {/* Controls bar */}
+      <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
+          <PeriodSelector value={period} onChange={setPeriod} />
+          <div className="w-px h-6 bg-slate-200" />
+          <ActionFilter value={actionFilter} onChange={setActionFilter} />
+        </div>
+        <ViewToggle value={view} onChange={setView} />
+      </div>
+
       {/* Loading / Error */}
       {isLoading && <div className="flex items-center justify-center h-48 text-slate-400">Loading ETF data...</div>}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">Failed to load ETF rankings.</div>
       )}
 
-      {etfs && etfs.length > 0 && (
+      {filtered.length > 0 && (
         <div className="space-y-6">
+          {/* Board or Table */}
+          {view === 'kanban' ? (
+            <ETFActionBoard items={filtered} />
+          ) : (
+            <ETFTable items={filtered} />
+          )}
+
           {/* Scatter Chart */}
-          <ETFScatter items={etfs} />
-
-          {/* ETF Ranking Table */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
-              <span className="text-sm font-semibold text-slate-700">ETF Rankings</span>
-              <span className="text-xs text-slate-400 ml-2">({etfs.length} ETFs)</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">ETF</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Sector</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Action</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">RS %</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Abs %</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Momentum</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Volume</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Reason</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {etfs.map((item) => {
-                    const etfSector = SECTOR_DISPLAY_NAMES[item.sector ?? ''] ?? item.sector ?? '--'
-                    const rsColor = (item.rs_score - 50) > 0 ? 'text-emerald-600' : 'text-red-600'
-                    const momColor = (item.rs_momentum ?? 0) > 0 ? 'text-emerald-600' : 'text-red-600'
-
-                    return (
-                      <tr key={item.instrument_id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3">
-                          <div className="text-sm font-semibold text-slate-900">{item.instrument_id}</div>
-                          <div className="text-xs text-slate-400 truncate max-w-[200px]">{item.name}</div>
-                        </td>
-                        <td className="px-3 py-3 text-center text-xs text-slate-600">{etfSector}</td>
-                        <td className="px-3 py-3 text-center"><ActionBadge action={item.action} /></td>
-                        <td className={`px-3 py-3 text-center font-mono text-sm ${rsColor}`}>{item.rs_score.toFixed(1)}</td>
-                        <td className="px-3 py-3 text-center"><ReturnBadge value={item.absolute_return} /></td>
-                        <td className={`px-3 py-3 text-center font-mono text-sm ${momColor}`}>{(item.rs_momentum ?? 0).toFixed(1)}</td>
-                        <td className="px-3 py-3 text-center text-xs text-slate-500">{volumeLabel(item.volume_signal)}</td>
-                        <td className="px-3 py-3 text-xs text-slate-400 italic max-w-[200px] truncate">{item.action_reason ?? '--'}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <ETFScatter items={filtered} />
         </div>
       )}
 
