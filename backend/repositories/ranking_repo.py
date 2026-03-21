@@ -34,33 +34,13 @@ CANONICAL_SECTORS: dict[str, list[str]] = {
         "1615_JP", "1617_JP", "1619_JP", "1621_JP", "1622_JP",
         "1623_JP", "1625_JP", "1629_JP", "1630_JP", "1633_JP",
     ],
-    "HK": [
-        "KTEC_US",  # KraneShares Hang Seng TECH (technology)
-    ],
-    "KR": [
-        "KODEX_FIN_KR", "KODEX_HC_KR", "KODEX_IND_KR",
-        "KODEX_SEM_KR", "TIGER_KR", "KODEX_BAT_KR",
-        "KDEF_US",
-    ],
-    "CN": [
-        "CHIQ_US", "CHIE_US", "CHIM_US", "CHIR_US",
-        "CQQQ_US", "KWEB_US", "KURE_US", "KGRN_US",
-    ],
-    "TW": [
-        "0050_TW", "0051_TW",
-    ],
-    "AU": [
-        "MVB_AU", "OZR_AU", "VAS_AU",
-    ],
-    "BR": [
-        "FIND11_BR", "MATB11_BR", "BOVA11_BR",
-    ],
+    # HK, KR, CN, TW, AU, BR — use dynamic fallback to find sector ETFs
+    # from the DB's sector classification (ETF→GICS mapping applied).
     "CA": [
         "XEG_CA", "XFN_CA", "XHC_CA", "XIN_CA", "XIT_CA",
         "XMA_CA", "XRE_CA", "XST_CA", "XUT_CA", "XIU_CA",
     ],
-    # UK, DE, FR — no sector-level instruments with RS scores in the DB yet.
-    # These countries need price data fetched and RS computed before they can appear.
+    # UK, DE, FR — use dynamic fallback (ETF→GICS mapping applied for UK).
 }
 
 CANONICAL_GLOBAL_SECTORS: list[str] = [
