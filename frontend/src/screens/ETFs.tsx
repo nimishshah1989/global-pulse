@@ -5,9 +5,11 @@ import { useTopETFs, useSectorRankings, useCountryRankings } from '@/api/hooks/u
 import { COUNTRY_FLAGS, COUNTRY_NAMES, SECTOR_DISPLAY_NAMES } from '@/data/countryData'
 import { formatPercent } from '@/utils/format'
 import PeriodSelector from '@/components/common/PeriodSelector'
+import BenchmarkSelector from '@/components/common/BenchmarkSelector'
 import ActionFilter from '@/components/common/ActionFilter'
 import ViewToggle from '@/components/common/ViewToggle'
 import type { Period } from '@/components/common/PeriodSelector'
+import type { Benchmark } from '@/components/common/BenchmarkSelector'
 import type { ViewMode } from '@/components/common/ViewToggle'
 import type { RankingItem, Action } from '@/types/rs'
 import { actionLabel, watchSubLabel, volumeLabel } from '@/types/rs'
@@ -234,11 +236,12 @@ export default function ETFs(): JSX.Element {
   const sector = sectorSlug ?? ''
 
   const [period, setPeriod] = useState<Period>('3m')
+  const [benchmark, setBenchmark] = useState<Benchmark>('')
   const [actionFilter, setActionFilter] = useState<Action | null>(null)
   const [view, setView] = useState<ViewMode>('table')
 
   const { data: etfs, isLoading, error } = useTopETFs(undefined, code, sector, 200, period)
-  const { data: sectors } = useSectorRankings(code, null, null, period)
+  const { data: sectors } = useSectorRankings(code, null, benchmark || null, period)
   const { data: countries } = useCountryRankings(null, null, period)
 
   const country = Array.isArray(countries) ? countries.find((c) => c.country === code) : undefined
@@ -313,6 +316,8 @@ export default function ETFs(): JSX.Element {
       <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
           <PeriodSelector value={period} onChange={setPeriod} />
+          <div className="w-px h-6 bg-slate-200" />
+          <BenchmarkSelector value={benchmark} onChange={setBenchmark} />
           <div className="w-px h-6 bg-slate-200" />
           <ActionFilter value={actionFilter} onChange={setActionFilter} />
         </div>

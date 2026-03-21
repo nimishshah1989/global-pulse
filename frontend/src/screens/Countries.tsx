@@ -6,12 +6,18 @@ import { useRegime } from '@/api/hooks/useRegime'
 import { COUNTRY_FLAGS, COUNTRY_NAMES } from '@/data/countryData'
 import { formatPercent } from '@/utils/format'
 import PeriodSelector from '@/components/common/PeriodSelector'
+import BenchmarkSelector from '@/components/common/BenchmarkSelector'
 import ActionFilter from '@/components/common/ActionFilter'
 import ViewToggle from '@/components/common/ViewToggle'
 import type { Period } from '@/components/common/PeriodSelector'
+import type { Benchmark } from '@/components/common/BenchmarkSelector'
 import type { ViewMode } from '@/components/common/ViewToggle'
 import type { RankingItem, Action, MarketRegime } from '@/types/rs'
 import { actionLabel, watchSubLabel, volumeLabel, regimeLabel } from '@/types/rs'
+
+const BENCHMARKS_DISPLAY: Record<string, string> = {
+  ACWI: 'ACWI', SPX: 'S&P 500', NSEI: 'NIFTY 50', GLD: 'Gold', SHY: 'USD Cash', EEM: 'EM', VEA: 'Dev ex-US',
+}
 
 // Action card colors — matching MarketPulse exactly
 const ACTION_CONFIG: Record<Action, { bg: string; text: string; border: string; dot: string; description: string }> = {
@@ -274,10 +280,11 @@ function CountryTable({ items, onItemClick }: { items: RankingItem[]; onItemClic
 export default function Countries(): JSX.Element {
   const navigate = useNavigate()
   const [period, setPeriod] = useState<Period>('3m')
+  const [benchmark, setBenchmark] = useState<Benchmark>('')
   const [actionFilter, setActionFilter] = useState<Action | null>(null)
   const [view, setView] = useState<ViewMode>('kanban')
 
-  const { data: countries, isLoading, error } = useCountryRankings(null, null, period)
+  const { data: countries, isLoading, error } = useCountryRankings(null, benchmark || null, period)
   const { data: regimeData } = useRegime()
 
   const regime = (regimeData?.regime ?? 'BULL') as MarketRegime
@@ -299,7 +306,7 @@ export default function Countries(): JSX.Element {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Global Pulse</h1>
-          <p className="text-sm text-slate-500 mt-1">Country relative strength vs <span className="font-semibold text-teal-600">ACWI</span> benchmark</p>
+          <p className="text-sm text-slate-500 mt-1">Country relative strength vs <span className="font-semibold text-teal-600">{benchmark ? BENCHMARKS_DISPLAY[benchmark] : 'ACWI'}</span> benchmark</p>
         </div>
         <div className={`px-4 py-2 rounded-lg text-sm font-semibold ${rCfg.bg} ${rCfg.text}`}>
           {regimeLabel(regime)}
@@ -310,6 +317,8 @@ export default function Countries(): JSX.Element {
       <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
           <PeriodSelector value={period} onChange={setPeriod} />
+          <div className="w-px h-6 bg-slate-200" />
+          <BenchmarkSelector value={benchmark} onChange={setBenchmark} />
           <div className="w-px h-6 bg-slate-200" />
           <ActionFilter value={actionFilter} onChange={setActionFilter} />
         </div>
