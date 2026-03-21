@@ -131,76 +131,137 @@ SECTOR_GROUP_MAP: dict[str, list[str]] = {
 }
 
 
-_QUADRANT_TO_ACTION: dict[str, str] = {
-    "LEADING": "BUY",
-    "IMPROVING": "ACCUMULATE",
-    "WEAKENING": "REDUCE",
-    "LAGGING": "SELL",
-}
+# ---------------------------------------------------------------------------
+# 3-Gate Action Engine (matches MarketPulse exactly)
+# G1: Absolute return > 0? (is price going up?)
+# G2: RS Score > 50? (outperforming benchmark? — 50 is the peer-group median)
+# G3: Momentum > 0? (is RS getting stronger?)
+# ---------------------------------------------------------------------------
+
+def _classify_quadrant(rs_score: float, momentum: float) -> str:
+    """2x2 quadrant from RS score and momentum."""
+    outperforming = rs_score > 50
+    strengthening = momentum > 0
+    if outperforming and strengthening:
+        return "LEADING"
+    if outperforming and not strengthening:
+        return "WEAKENING"
+    if not outperforming and strengthening:
+        return "IMPROVING"
+    return "LAGGING"
 
 
-def _resolve_action(quadrant: str, rs_score: float) -> str:
-    """Derive action from quadrant AND RS score to avoid contradictions.
+def _compute_volume_signal(volume_ratio: float, price_rising: bool) -> str:
+    """Volume signal from 20d/100d volume ratio + price direction.
 
-    Quadrant alone can produce misleading signals (e.g. IMPROVING + RS 38
-    → ACCUMULATE, which looks bullish). Override with score-aware logic.
+    Matches MarketPulse: ACCUMULATION, WEAK_RALLY, DISTRIBUTION, WEAK_DECLINE.
     """
-    base = _QUADRANT_TO_ACTION.get(quadrant, quadrant)
+    volume_rising = volume_ratio >= 1.0
+    if price_rising and volume_rising:
+        return "ACCUMULATION"
+    if price_rising and not volume_rising:
+        return "WEAK_RALLY"
+    if not price_rising and volume_rising:
+        return "DISTRIBUTION"
+    return "WEAK_DECLINE"
 
-    # Very weak RS — never show bullish action regardless of quadrant
-    if rs_score < 30:
-        if base in ("BUY", "ACCUMULATE"):
-            return "AVOID"
-        return base
-    if rs_score < 40:
-        if base == "BUY":
-            return "WATCH"
-        if base == "ACCUMULATE":
-            return "WATCH"
-        return base
-    if rs_score < 50:
-        if base == "BUY":
-            return "ACCUMULATE"
-        return base
 
-    # Very strong RS — never show bearish action regardless of quadrant
-    if rs_score >= 70:
-        if base in ("SELL", "AVOID"):
-            return "REDUCE"
-        return base
+def _derive_action_gate(
+    absolute_return: float | None,
+    rs_score: float,
+    momentum: float,
+    volume_signal: str,
+    regime: str,
+) -> tuple[str, str]:
+    """3-gate action engine — exact MarketPulse logic.
 
-    return base
+    Returns (action, reason) tuple.
+    """
+    g1 = (absolute_return or 0) > 0
+    g2 = rs_score > 50
+    g3 = momentum > 0
+
+    if g1 and g2 and g3:
+        action = "BUY"
+        reason = "Rising, outperforming, and strengthening"
+    elif g1 and g2 and not g3:
+        action = "HOLD"
+        reason = "Outperforming but momentum fading"
+    elif g1 and not g2 and g3:
+        action = "WATCH_EMERGING"
+        reason = "Rising and strengthening, but still lagging peers"
+    elif g1 and not g2 and not g3:
+        action = "AVOID"
+        reason = "Rising but lagging with fading momentum"
+    elif not g1 and g2 and g3:
+        action = "WATCH_RELATIVE"
+        reason = "Outperforming and strengthening despite price decline"
+    elif not g1 and g2 and not g3:
+        action = "SELL"
+        reason = "Price falling with fading relative strength"
+    elif not g1 and not g2 and g3:
+        action = "WATCH_EARLY"
+        reason = "Earliest reversal signal — momentum just turned positive"
+    else:
+        action = "SELL"
+        reason = "Falling, underperforming, and weakening"
+
+    # Volume override: BUY + DISTRIBUTION → downgrade to HOLD
+    if action == "BUY" and volume_signal == "DISTRIBUTION":
+        action = "HOLD"
+        reason = "BUY downgraded — smart money distribution detected"
+
+    # Regime override: BEAR → BUY downgraded to HOLD
+    if action == "BUY" and regime in ("BEAR", "CORRECTION"):
+        action = "HOLD"
+        reason = f"BUY downgraded — market in {regime.lower()} regime"
+
+    return action, reason
+
+
+def _compute_market_regime(benchmark_price: float | None, benchmark_ma200: float | None) -> str:
+    """Compute market regime from ACWI price vs 200-day MA."""
+    if benchmark_price is None or benchmark_ma200 is None:
+        return "BULL"
+    ratio = benchmark_price / benchmark_ma200 if benchmark_ma200 > 0 else 1.0
+    if ratio >= 1.0:
+        return "BULL"
+    if ratio >= 0.95:
+        return "CAUTIOUS"
+    if ratio >= 0.85:
+        return "CORRECTION"
+    return "BEAR"
 
 
 def _rs_score_to_v2_dict(score: RSScore, inst: Instrument) -> dict[str, Any]:
-    """Convert RSScore ORM model to v2 ranking dict."""
-    adjusted = float(score.adjusted_rs_score) if score.adjusted_rs_score is not None else 50.0
+    """Convert RSScore ORM model to v2 ranking dict.
+
+    Computes quadrant, volume_signal, and preliminary action via 3-gate engine.
+    Action is recalculated by _enrich_with_returns once actual returns are available.
+    """
+    rs_score = float(score.adjusted_rs_score) if score.adjusted_rs_score is not None else 50.0
     momentum = float(score.rs_momentum) if score.rs_momentum is not None else 0.0
-    raw_quadrant = score.quadrant or "WATCH"
-    action = _resolve_action(raw_quadrant, adjusted)
-    rs_line = float(score.rs_line) if score.rs_line is not None else None
-    rs_ma = float(score.rs_ma_150) if score.rs_ma_150 is not None else None
-    raw_trend = score.rs_trend or "UNDERPERFORMING"
-
-    # Override trend when score contradicts it
-    if adjusted < 40 and raw_trend == "OUTPERFORMING":
-        price_trend = "RECOVERING"
-    elif adjusted > 60 and raw_trend == "UNDERPERFORMING":
-        price_trend = "CONSOLIDATING"
-    else:
-        price_trend = raw_trend
-
-    # Volume character from volume_ratio
     vol_ratio = float(score.volume_ratio) if score.volume_ratio is not None else 1.0
-    if vol_ratio >= 1.3:
-        volume_character = "ACCUMULATION"
-    elif vol_ratio <= 0.7:
-        volume_character = "DISTRIBUTION"
-    else:
-        volume_character = "NEUTRAL"
 
-    # Momentum trend from sign
-    momentum_trend = "ACCELERATING" if momentum > 0 else "DECELERATING"
+    # Quadrant from RS score + momentum
+    quadrant = _classify_quadrant(rs_score, momentum)
+
+    # Use RS trend as proxy for price direction (until actual returns are computed)
+    price_rising = (score.rs_trend or "UNDERPERFORMING") == "OUTPERFORMING"
+
+    # Volume signal: 4-category from volume ratio + price direction
+    volume_signal = _compute_volume_signal(vol_ratio, price_rising)
+
+    # Map old 2-category regime to 4-category (refined by _enrich_with_returns later)
+    old_regime = score.regime or "RISK_ON"
+    regime = "BULL" if old_regime == "RISK_ON" else "BEAR"
+
+    # Preliminary action using rs_trend as proxy for absolute return
+    # absolute_return > 0 ≈ price_rising for the initial pass
+    preliminary_abs_return = 1.0 if price_rising else -1.0
+    action, action_reason = _derive_action_gate(
+        preliminary_abs_return, rs_score, momentum, volume_signal, regime,
+    )
 
     return {
         "instrument_id": score.instrument_id,
@@ -208,17 +269,17 @@ def _rs_score_to_v2_dict(score: RSScore, inst: Instrument) -> dict[str, Any]:
         "country": inst.country,
         "sector": inst.sector,
         "asset_type": inst.asset_type,
-        "rs_line": rs_line,
-        "rs_ma": rs_ma,
-        "price_trend": price_trend,
-        "rs_momentum_pct": momentum,
-        "momentum_trend": momentum_trend,
-        "volume_character": volume_character,
+        "rs_score": rs_score,
+        "rs_momentum": momentum,
+        "quadrant": quadrant,
         "action": action,
-        "rs_score": adjusted,
-        "regime": score.regime or "RISK_ON",
+        "action_reason": action_reason,
+        "volume_signal": volume_signal,
+        "regime": regime,
+        "absolute_return": None,
+        "relative_return": None,
         "benchmark_id": inst.benchmark_id,
-        # Ratio returns — populated by enrich step (None until enriched)
+        # Ratio returns — populated by _enrich_with_returns
         "return_1m": None,
         "return_3m": None,
         "return_6m": None,
@@ -274,6 +335,8 @@ class RankingRepository:
             bid = resolved_override or _BENCHMARK_ID_MAP.get(it.get("benchmark_id", ""), it.get("benchmark_id"))
             if bid:
                 bench_ids.add(bid)
+        # Always include ACWI for regime calculation
+        bench_ids.add("ACWI")
         all_ids = list(set(inst_ids) | bench_ids)
 
         # Fetch recent prices for all instruments (last 260 trading days)
@@ -311,6 +374,14 @@ class RankingRepository:
                 return None
             return round((latest_close / old_close - 1) * 100, 2)
 
+        # Compute market regime from ACWI price vs 200-day MA
+        acwi_prices = prices.get("ACWI", [])
+        regime = "BULL"
+        if len(acwi_prices) >= 200:
+            acwi_latest = acwi_prices[-1][1]
+            acwi_ma200 = sum(p[1] for p in acwi_prices[-200:]) / 200
+            regime = _compute_market_regime(acwi_latest, acwi_ma200)
+
         # Enrich each item
         for it in items:
             iid = it["instrument_id"]
@@ -326,6 +397,42 @@ class RankingRepository:
                     bench_ret = _compute_return(prices[bid], days)
                     if ret is not None and bench_ret is not None:
                         it[f"excess_{period_key}"] = round(ret - bench_ret, 2)
+
+            # Absolute and relative returns (3M as primary signal)
+            abs_ret = it.get("return_3m") or it.get("return_1m")
+            it["absolute_return"] = abs_ret
+            it["relative_return"] = it.get("excess_3m") or it.get("excess_1m")
+
+            # Recalculate volume_signal with actual price direction
+            price_rising = (abs_ret or 0) > 0
+            vol_ratio_val = 1.0
+            # Re-derive from rs_score fields already in the dict
+            vol_signal = _compute_volume_signal(vol_ratio_val, price_rising)
+            # Only update volume_signal if we have actual return data
+            if abs_ret is not None:
+                # Need the original volume_ratio — approximate from existing signal
+                # Keep the volume component, just update price direction
+                old_signal = it.get("volume_signal", "WEAK_DECLINE")
+                vol_rising = old_signal in ("ACCUMULATION", "DISTRIBUTION")
+                if price_rising and vol_rising:
+                    it["volume_signal"] = "ACCUMULATION"
+                elif price_rising and not vol_rising:
+                    it["volume_signal"] = "WEAK_RALLY"
+                elif not price_rising and vol_rising:
+                    it["volume_signal"] = "DISTRIBUTION"
+                else:
+                    it["volume_signal"] = "WEAK_DECLINE"
+
+            # Apply computed regime
+            it["regime"] = regime
+
+            # Recalculate action with actual absolute return + regime
+            action, reason = _derive_action_gate(
+                abs_ret, it["rs_score"], it["rs_momentum"],
+                it["volume_signal"], regime,
+            )
+            it["action"] = action
+            it["action_reason"] = reason
 
             # Update benchmark_id to reflect what was actually used
             if resolved_override:
@@ -482,12 +589,13 @@ class RankingRepository:
 
     async def get_all_etf_rankings(self) -> list[dict[str, Any]]:
         """Return all ETF rankings — the main output screen."""
-        return await self._get_rankings_filtered(
+        items = await self._get_rankings_filtered(
             asset_types=(
-                "sector_etf", "country_etf", "global_sector_etf",
+                "sector_etf", "sector_index", "country_etf", "global_sector_etf",
                 "etf", "regional_etf", "commodity_etf", "bond_etf",
             ),
         )
+        return await self._enrich_with_returns(items)
 
     async def get_top_etfs(
         self, action_filter: str | None = None,
@@ -502,7 +610,7 @@ class RankingRepository:
             conditions = [Instrument.is_active == True]
             conditions.append(
                 Instrument.asset_type.in_((
-                    "sector_etf", "country_etf", "global_sector_etf",
+                    "sector_etf", "sector_index", "country_etf", "global_sector_etf",
                     "etf", "regional_etf", "commodity_etf", "bond_etf",
                 ))
             )

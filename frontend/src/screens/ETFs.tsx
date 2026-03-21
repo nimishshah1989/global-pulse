@@ -1,77 +1,116 @@
 import { useParams, Link } from 'react-router-dom'
+import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
 import { useTopETFs, useSectorRankings, useCountryRankings } from '@/api/hooks/useRankings'
 import { COUNTRY_FLAGS, COUNTRY_NAMES, SECTOR_DISPLAY_NAMES } from '@/data/countryData'
 import { formatPercent } from '@/utils/format'
 import type { RankingItem, Action } from '@/types/rs'
+import { actionLabel, watchSubLabel, volumeLabel } from '@/types/rs'
 
-const ACTION_COLORS: Record<Action, string> = {
-  BUY: 'bg-emerald-100 text-emerald-700',
-  ACCUMULATE: 'bg-teal-100 text-teal-700',
-  HOLD_DIVERGENCE: 'bg-yellow-100 text-yellow-700',
-  HOLD_FADING: 'bg-yellow-100 text-yellow-700',
-  WATCH: 'bg-blue-100 text-blue-700',
-  REDUCE: 'bg-orange-100 text-orange-700',
-  SELL: 'bg-red-100 text-red-700',
-  AVOID: 'bg-slate-200 text-slate-600',
-}
-
-const ACTION_LABELS: Record<Action, string> = {
-  BUY: 'Buy',
-  ACCUMULATE: 'Accumulate',
-  HOLD_DIVERGENCE: 'Hold',
-  HOLD_FADING: 'Hold',
-  WATCH: 'Watch',
-  REDUCE: 'Reduce',
-  SELL: 'Sell',
-  AVOID: 'Avoid',
-}
-
-function ReturnCell({ value }: { value: number | null | undefined }): JSX.Element {
-  if (value == null) return <td className="px-3 py-3 text-center text-slate-300 font-mono text-sm">--</td>
-  const color = value > 0 ? 'text-emerald-600' : value < 0 ? 'text-red-600' : 'text-slate-500'
-  return <td className={`px-3 py-3 text-center font-mono text-sm ${color}`}>{formatPercent(value)}</td>
+const ACTION_CONFIG: Record<Action, { bg: string; text: string; border: string; dot: string }> = {
+  BUY:            { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200', dot: '#059669' },
+  HOLD:           { bg: 'bg-amber-100',   text: 'text-amber-700',   border: 'border-amber-200',   dot: '#d97706' },
+  WATCH_EMERGING: { bg: 'bg-blue-100',    text: 'text-blue-700',    border: 'border-blue-200',    dot: '#2563eb' },
+  WATCH_RELATIVE: { bg: 'bg-sky-100',     text: 'text-sky-700',     border: 'border-sky-200',     dot: '#0284c7' },
+  WATCH_EARLY:    { bg: 'bg-indigo-100',  text: 'text-indigo-700',  border: 'border-indigo-200',  dot: '#4f46e5' },
+  AVOID:          { bg: 'bg-orange-100',   text: 'text-orange-700',  border: 'border-orange-200',  dot: '#ea580c' },
+  SELL:           { bg: 'bg-red-100',      text: 'text-red-700',     border: 'border-red-200',     dot: '#dc2626' },
 }
 
 function ActionBadge({ action }: { action: Action }): JSX.Element {
+  const cfg = ACTION_CONFIG[action]
+  const sub = watchSubLabel(action)
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${ACTION_COLORS[action]}`}>
-      {ACTION_LABELS[action]}
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${cfg.bg} ${cfg.text}`}>
+      {actionLabel(action)}{sub ? ` (${sub})` : ''}
     </span>
   )
 }
 
-function ETFRow({ item }: { item: RankingItem }): JSX.Element {
+function ReturnBadge({ value }: { value: number | null }): JSX.Element {
+  if (value == null) return <span className="text-slate-300 font-mono text-xs">--</span>
+  const color = value > 0 ? 'text-emerald-600' : value < 0 ? 'text-red-600' : 'text-slate-500'
+  return <span className={`font-mono text-xs ${color}`}>{formatPercent(value)}</span>
+}
+
+function ETFScatter({ items }: { items: RankingItem[] }): JSX.Element {
+  const data = items.map((item) => ({
+    x: item.rs_score - 50,
+    y: item.rs_momentum ?? 0,
+    name: item.name,
+    id: item.instrument_id,
+    action: item.action,
+    item,
+  }))
+
+  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: typeof data[0] }> }) => {
+    if (!active || !payload?.length) return null
+    const d = payload[0].payload
+    return (
+      <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs">
+        <div className="font-semibold text-slate-900 mb-1">{d.name}</div>
+        <div className="text-slate-400 mb-1">{d.id}</div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+          <span className="text-slate-500">RS Score</span>
+          <span className="font-mono">{(d.x + 50).toFixed(1)}</span>
+          <span className="text-slate-500">Momentum</span>
+          <span className="font-mono">{d.y.toFixed(1)}</span>
+          <span className="text-slate-500">Abs Return</span>
+          <span className="font-mono">{d.item.absolute_return != null ? `${d.item.absolute_return.toFixed(1)}%` : '--'}</span>
+          <span className="text-slate-500">Volume</span>
+          <span>{volumeLabel(d.item.volume_signal)}</span>
+          <span className="text-slate-500">Action</span>
+          <span>{actionLabel(d.action)}</span>
+        </div>
+        {d.item.action_reason && (
+          <div className="mt-1.5 text-slate-400 italic">{d.item.action_reason}</div>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-      <td className="px-4 py-3">
-        <div className="text-sm font-semibold text-slate-900">{item.name}</div>
-        <div className="text-xs text-slate-400 font-mono">{item.instrument_id}</div>
-      </td>
-      <td className="px-3 py-3 text-center"><ActionBadge action={item.action} /></td>
-      <td className="px-3 py-3 text-center font-mono text-sm font-semibold text-slate-700">
-        {item.rs_score?.toFixed(1)}
-      </td>
-      <td className="px-3 py-3 text-center text-xs">
-        <span className={item.price_trend === 'OUTPERFORMING' ? 'text-emerald-600' : 'text-red-500'}>
-          {item.price_trend === 'OUTPERFORMING' ? 'Outperforming' : 'Underperforming'}
-        </span>
-      </td>
-      <td className="px-3 py-3 text-center text-xs">
-        <span className={item.momentum_trend === 'ACCELERATING' ? 'text-emerald-600' : 'text-orange-500'}>
-          {item.momentum_trend === 'ACCELERATING' ? 'Accelerating' : 'Decelerating'}
-        </span>
-      </td>
-      <td className="px-3 py-3 text-center text-xs">
-        <span className={item.volume_character === 'ACCUMULATION' ? 'text-emerald-600' : item.volume_character === 'DISTRIBUTION' ? 'text-red-500' : 'text-slate-500'}>
-          {item.volume_character === 'ACCUMULATION' ? 'Accum' : item.volume_character === 'DISTRIBUTION' ? 'Distr' : 'Neutral'}
-        </span>
-      </td>
-      <ReturnCell value={item.return_1m} />
-      <ReturnCell value={item.return_3m} />
-      <ReturnCell value={item.return_6m} />
-      <ReturnCell value={item.return_12m} />
-      <ReturnCell value={item.excess_3m} />
-    </tr>
+    <div className="bg-white rounded-xl border border-slate-200 p-4">
+      <h3 className="text-sm font-semibold text-slate-700 mb-3">ETF Relative Strength ({items.length} ETFs tracked)</h3>
+      <ResponsiveContainer width="100%" height={400}>
+        <ScatterChart margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <XAxis
+            type="number" dataKey="x" name="RS Score"
+            tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v.toFixed(0)}`}
+            label={{ value: 'RS Score (vs 50)', position: 'bottom', offset: -5, style: { fontSize: 11, fill: '#94a3b8' } }}
+          />
+          <YAxis
+            type="number" dataKey="y" name="Momentum"
+            tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v.toFixed(0)}`}
+            label={{ value: 'Momentum', angle: -90, position: 'insideLeft', style: { fontSize: 11, fill: '#94a3b8' } }}
+          />
+          <ReferenceLine x={0} stroke="#94a3b8" strokeDasharray="3 3" />
+          <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
+          <Tooltip content={<CustomTooltip />} />
+          <Scatter data={data} fill="#0d9488">
+            {data.map((entry, idx) => (
+              <circle
+                key={idx}
+                r={6}
+                fill={ACTION_CONFIG[entry.action]?.dot ?? '#94a3b8'}
+                fillOpacity={0.7}
+                stroke={ACTION_CONFIG[entry.action]?.dot ?? '#94a3b8'}
+                strokeWidth={1}
+              />
+            ))}
+          </Scatter>
+        </ScatterChart>
+      </ResponsiveContainer>
+
+      <div className="flex flex-wrap gap-4 mt-2 justify-center">
+        {(['BUY', 'HOLD', 'WATCH_EMERGING', 'AVOID', 'SELL'] as Action[]).map((a) => (
+          <div key={a} className="flex items-center gap-1.5 text-xs text-slate-500">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: ACTION_CONFIG[a].dot }} />
+            {actionLabel(a)}
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -79,7 +118,7 @@ export default function ETFs(): JSX.Element {
   const { countryCode, sectorSlug } = useParams<{ countryCode: string; sectorSlug: string }>()
   const code = countryCode ?? ''
   const sector = sectorSlug ?? ''
-  const { data: etfs, isLoading, error } = useTopETFs(undefined, code, sector, 100)
+  const { data: etfs, isLoading, error } = useTopETFs(undefined, code, sector, 200)
   const { data: sectors } = useSectorRankings(code)
   const { data: countries } = useCountryRankings()
 
@@ -100,26 +139,26 @@ export default function ETFs(): JSX.Element {
         <span className="text-slate-900 font-medium">{sectorName}</span>
       </nav>
 
-      {/* Sector Summary */}
+      {/* Sector Summary Card */}
       {sectorInfo && (
         <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <h1 className="text-xl font-bold text-slate-900">{sectorName}</h1>
               <p className="text-sm text-slate-500">{flag} {countryName} — sector ETFs ranked by relative strength</p>
             </div>
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-6 flex-wrap">
               <ActionBadge action={sectorInfo.action} />
               <div className="text-center">
-                <div className="text-2xl font-bold font-mono text-slate-900">{sectorInfo.rs_score?.toFixed(1)}</div>
+                <div className="text-2xl font-bold font-mono text-slate-900">{sectorInfo.rs_score.toFixed(1)}</div>
                 <div className="text-xs text-slate-400">RS Score</div>
               </div>
               <div className="flex gap-4 text-center">
-                {[
+                {([
                   { label: '3M', value: sectorInfo.return_3m },
                   { label: '6M', value: sectorInfo.return_6m },
                   { label: '12M', value: sectorInfo.return_12m },
-                ].map(({ label, value }) => (
+                ] as const).map(({ label, value }) => (
                   <div key={label}>
                     <div className={`text-sm font-mono font-semibold ${
                       (value ?? 0) > 0 ? 'text-emerald-600' : (value ?? 0) < 0 ? 'text-red-600' : 'text-slate-500'
@@ -132,54 +171,76 @@ export default function ETFs(): JSX.Element {
               </div>
             </div>
           </div>
+          {sectorInfo.action_reason && (
+            <p className="text-xs text-slate-400 italic mt-2">{sectorInfo.action_reason}</p>
+          )}
         </div>
       )}
 
-      {/* Country context */}
-      {country && !sectorInfo && (
+      {/* Fallback header */}
+      {!sectorInfo && country && (
         <div className="mb-4">
           <h1 className="text-xl font-bold text-slate-900">{sectorName} ETFs — {flag} {countryName}</h1>
         </div>
       )}
 
       {/* Loading / Error */}
-      {isLoading && (
-        <div className="flex items-center justify-center h-48 text-slate-400">Loading ETF data...</div>
-      )}
+      {isLoading && <div className="flex items-center justify-center h-48 text-slate-400">Loading ETF data...</div>}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
-          Failed to load ETF rankings.
-        </div>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">Failed to load ETF rankings.</div>
       )}
 
-      {/* ETF Table */}
       {etfs && etfs.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
-            <span className="text-sm text-slate-600">{etfs.length} ETFs</span>
+        <div className="space-y-6">
+          {/* Scatter Chart */}
+          <ETFScatter items={etfs} />
+
+          {/* ETF Ranking Table */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+              <span className="text-sm font-semibold text-slate-700">ETF Rankings</span>
+              <span className="text-xs text-slate-400 ml-2">({etfs.length} ETFs)</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">ETF</th>
+                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Sector</th>
+                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Action</th>
+                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">RS %</th>
+                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Abs %</th>
+                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Momentum</th>
+                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Volume</th>
+                    <th className="px-3 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {etfs.map((item) => {
+                    const etfSector = SECTOR_DISPLAY_NAMES[item.sector ?? ''] ?? item.sector ?? '--'
+                    const rsColor = (item.rs_score - 50) > 0 ? 'text-emerald-600' : 'text-red-600'
+                    const momColor = (item.rs_momentum ?? 0) > 0 ? 'text-emerald-600' : 'text-red-600'
+
+                    return (
+                      <tr key={item.instrument_id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="text-sm font-semibold text-slate-900">{item.instrument_id}</div>
+                          <div className="text-xs text-slate-400 truncate max-w-[200px]">{item.name}</div>
+                        </td>
+                        <td className="px-3 py-3 text-center text-xs text-slate-600">{etfSector}</td>
+                        <td className="px-3 py-3 text-center"><ActionBadge action={item.action} /></td>
+                        <td className={`px-3 py-3 text-center font-mono text-sm ${rsColor}`}>{item.rs_score.toFixed(1)}</td>
+                        <td className="px-3 py-3 text-center"><ReturnBadge value={item.absolute_return} /></td>
+                        <td className={`px-3 py-3 text-center font-mono text-sm ${momColor}`}>{(item.rs_momentum ?? 0).toFixed(1)}</td>
+                        <td className="px-3 py-3 text-center text-xs text-slate-500">{volumeLabel(item.volume_signal)}</td>
+                        <td className="px-3 py-3 text-xs text-slate-400 italic max-w-[200px] truncate">{item.action_reason ?? '--'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-          <table className="w-full">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">ETF</th>
-                <th className="px-3 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Action</th>
-                <th className="px-3 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">RS Score</th>
-                <th className="px-3 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Trend</th>
-                <th className="px-3 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Momentum</th>
-                <th className="px-3 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Volume</th>
-                <th className="px-3 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">1M</th>
-                <th className="px-3 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">3M</th>
-                <th className="px-3 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">6M</th>
-                <th className="px-3 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">12M</th>
-                <th className="px-3 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Excess 3M</th>
-              </tr>
-            </thead>
-            <tbody>
-              {etfs.map((item) => (
-                <ETFRow key={item.instrument_id} item={item} />
-              ))}
-            </tbody>
-          </table>
         </div>
       )}
 

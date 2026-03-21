@@ -16,7 +16,7 @@ from db.models import Instrument, RSScore
 from repositories.instrument_repo import InstrumentRepository
 from repositories.ranking_repo import (
     CANONICAL_COUNTRY_INDICES, CANONICAL_SECTORS, CANONICAL_GLOBAL_SECTORS,
-    _resolve_action,
+    _classify_quadrant, _compute_volume_signal,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,17 +30,12 @@ def _build_rrg_from_db(
     latest = scores[0]  # most recent
     rs_score = float(latest.adjusted_rs_score) if latest.adjusted_rs_score is not None else 50.0
     rs_momentum = float(latest.rs_momentum) if latest.rs_momentum is not None else 0.0
-    raw_quadrant = latest.quadrant or "WATCH"
-    action = _resolve_action(raw_quadrant, rs_score)
+    quadrant = _classify_quadrant(rs_score, rs_momentum)
 
-    # Volume character
+    # Volume signal
     vol_ratio = float(latest.volume_ratio) if latest.volume_ratio is not None else 1.0
-    if vol_ratio >= 1.3:
-        volume_character = "ACCUMULATION"
-    elif vol_ratio <= 0.7:
-        volume_character = "DISTRIBUTION"
-    else:
-        volume_character = "NEUTRAL"
+    price_rising = (latest.rs_trend or "UNDERPERFORMING") == "OUTPERFORMING"
+    volume_signal = _compute_volume_signal(vol_ratio, price_rising)
 
     # Build trail from historical scores (weekly samples)
     trail: list[dict[str, Any]] = []
@@ -58,8 +53,8 @@ def _build_rrg_from_db(
         "name": instrument.name,
         "rs_score": rs_score,
         "rs_momentum": rs_momentum,
-        "action": action,
-        "volume_character": volume_character,
+        "action": quadrant,
+        "volume_character": volume_signal,
         "trail": trail,
     }
 

@@ -1,6 +1,7 @@
 """Pydantic v2 models for RS v2 API responses.
 
-RS v2 uses 3 indicators (Price Trend, Momentum, OBV) and an 8-action matrix.
+RS v2 uses 3-gate action engine matching MarketPulse exactly:
+G1 (absolute return), G2 (RS score vs 50), G3 (momentum direction).
 """
 from __future__ import annotations
 
@@ -10,7 +11,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class RankingItemV2(BaseModel):
-    """Single item in a v2 ranking list."""
+    """Single item in a v2 ranking list — matches frontend RankingItem type."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -19,22 +20,22 @@ class RankingItemV2(BaseModel):
     country: str | None = None
     sector: str | None = None
     asset_type: str | None = None
-    # Indicator 1: Price Trend
-    rs_line: float | None = None
-    rs_ma: float | None = None
-    price_trend: str | None = None
-    # Indicator 2: Momentum
-    rs_momentum_pct: float | None = None
-    momentum_trend: str | None = None
-    # Indicator 3: OBV
-    volume_character: str | None = None
-    # Action
-    action: str = "WATCH"
-    # Score for sorting (0-100)
+    # RS data
     rs_score: float = 50.0
-    # Regime
-    regime: str = "RISK_ON"
-    # Ratio returns (actual % returns)
+    rs_momentum: float | None = None
+    # Quadrant (LEADING / WEAKENING / IMPROVING / LAGGING)
+    quadrant: str | None = None
+    # 3-gate action (BUY / HOLD / WATCH_EMERGING / WATCH_RELATIVE / WATCH_EARLY / AVOID / SELL)
+    action: str = "HOLD"
+    action_reason: str | None = None
+    # Volume signal (ACCUMULATION / WEAK_RALLY / DISTRIBUTION / WEAK_DECLINE)
+    volume_signal: str | None = None
+    # Market regime (BULL / CAUTIOUS / CORRECTION / BEAR)
+    regime: str = "BULL"
+    # Absolute and relative returns (actual %)
+    absolute_return: float | None = None
+    relative_return: float | None = None
+    # Period returns
     return_1m: float | None = None
     return_3m: float | None = None
     return_6m: float | None = None
@@ -46,19 +47,6 @@ class RankingItemV2(BaseModel):
     excess_12m: float | None = None
     # Benchmark used
     benchmark_id: str | None = None
-
-    # Legacy compatibility fields (map new to old for smooth transition)
-    @property
-    def adjusted_rs_score(self) -> float:
-        return self.rs_score
-
-    @property
-    def quadrant(self) -> str:
-        return self.action
-
-    @property
-    def rs_momentum(self) -> float:
-        return self.rs_momentum_pct or 0.0
 
 
 # Keep old model name as alias for import compatibility

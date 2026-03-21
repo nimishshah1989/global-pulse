@@ -1,11 +1,55 @@
-export type Action = 'BUY' | 'HOLD_DIVERGENCE' | 'HOLD_FADING' | 'REDUCE' | 'SELL' | 'WATCH' | 'ACCUMULATE' | 'AVOID'
-export type PriceTrend = 'OUTPERFORMING' | 'UNDERPERFORMING' | 'RECOVERING' | 'CONSOLIDATING'
-export type MomentumTrend = 'ACCELERATING' | 'DECELERATING'
-export type VolumeCharacter = 'ACCUMULATION' | 'DISTRIBUTION' | 'NEUTRAL'
-export type Regime = 'RISK_ON' | 'RISK_OFF'
+// Actions — matching MarketPulse 3-gate engine exactly
+export type Action =
+  | 'BUY'
+  | 'HOLD'
+  | 'WATCH_EMERGING'
+  | 'WATCH_RELATIVE'
+  | 'WATCH_EARLY'
+  | 'AVOID'
+  | 'SELL'
 
-// Quadrant labels used for RRG scatter display
-export type Quadrant = 'LEADING' | 'WEAKENING' | 'LAGGING' | 'IMPROVING'
+export type Quadrant = 'LEADING' | 'WEAKENING' | 'IMPROVING' | 'LAGGING'
+export type VolumeSignal = 'ACCUMULATION' | 'WEAK_RALLY' | 'DISTRIBUTION' | 'WEAK_DECLINE'
+export type MarketRegime = 'BULL' | 'CAUTIOUS' | 'CORRECTION' | 'BEAR'
+export type Regime = MarketRegime
+
+export function isWatch(action: Action): boolean {
+  return action === 'WATCH_EMERGING' || action === 'WATCH_RELATIVE' || action === 'WATCH_EARLY'
+}
+
+export function actionLabel(action: Action): string {
+  if (isWatch(action)) return 'Watch'
+  const labels: Record<string, string> = { BUY: 'Buy', HOLD: 'Hold', AVOID: 'Avoid', SELL: 'Sell' }
+  return labels[action] ?? action
+}
+
+export function watchSubLabel(action: Action): string | null {
+  if (action === 'WATCH_EMERGING') return 'Emerging'
+  if (action === 'WATCH_RELATIVE') return 'Relative'
+  if (action === 'WATCH_EARLY') return 'Early'
+  return null
+}
+
+export function volumeLabel(signal: VolumeSignal | null): string {
+  if (!signal) return '--'
+  const map: Record<VolumeSignal, string> = {
+    ACCUMULATION: 'Accumulation',
+    WEAK_RALLY: 'Weak Rally',
+    DISTRIBUTION: 'Distribution',
+    WEAK_DECLINE: 'Weak Decline',
+  }
+  return map[signal] ?? signal
+}
+
+export function regimeLabel(regime: MarketRegime): string {
+  const map: Record<MarketRegime, string> = {
+    BULL: 'Bull',
+    CAUTIOUS: 'Cautious',
+    CORRECTION: 'Correction',
+    BEAR: 'Bear',
+  }
+  return map[regime] ?? regime
+}
 
 export interface RankingItem {
   instrument_id: string
@@ -13,52 +57,30 @@ export interface RankingItem {
   country: string | null
   sector: string | null
   asset_type: string | null
-  // Indicator 1: Price Trend
-  rs_line: number | null
-  rs_ma: number | null
-  price_trend: PriceTrend | null
-  // Indicator 2: Momentum
-  rs_momentum_pct: number | null
-  momentum_trend: MomentumTrend | null
-  // Indicator 3: OBV
-  volume_character: VolumeCharacter | null
-  // Action
+  // RS data
+  rs_score: number
+  rs_momentum: number | null
+  // Quadrant
+  quadrant: Quadrant | null
+  // 3-gate action
   action: Action
-  // Score for sorting
-  rs_score: number
+  action_reason: string | null
+  // Volume
+  volume_signal: VolumeSignal | null
   // Regime
-  regime: Regime
+  regime: MarketRegime
   // Ratio returns (actual %)
-  return_1m?: number | null
-  return_3m?: number | null
-  return_6m?: number | null
-  return_12m?: number | null
+  absolute_return: number | null
+  relative_return: number | null
+  return_1m: number | null
+  return_3m: number | null
+  return_6m: number | null
+  return_12m: number | null
   // Excess returns vs benchmark
-  excess_1m?: number | null
-  excess_3m?: number | null
-  excess_6m?: number | null
-  excess_12m?: number | null
-  // Benchmark used
-  benchmark_id?: string | null
-}
-
-// Backward compat
-export interface RSScore extends RankingItem {
-  date: string
-}
-
-export interface RRGTrailPoint {
-  date: string
-  rs_score: number
-  rs_momentum: number
-}
-
-export interface RRGDataPoint {
-  id: string
-  name: string
-  rs_score: number
-  rs_momentum: number
-  action: Action | null
-  volume_character: string | null
-  trail: RRGTrailPoint[]
+  excess_1m: number | null
+  excess_3m: number | null
+  excess_6m: number | null
+  excess_12m: number | null
+  // Benchmark
+  benchmark_id: string | null
 }
