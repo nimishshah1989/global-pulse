@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
-import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
+import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Cell } from 'recharts'
 import { useSectorRankings, useCountryRankings } from '@/api/hooks/useRankings'
 import { COUNTRY_FLAGS, COUNTRY_NAMES, SECTOR_DISPLAY_NAMES } from '@/data/countryData'
 import { formatPercent } from '@/utils/format'
@@ -151,23 +151,27 @@ function SectorScatter({ items, onItemClick }: { items: RankingItem[]; onItemCli
           <Tooltip content={<CustomTooltip />} />
           <Scatter
             data={data}
-            fill="#0d9488"
             onClick={(_: unknown, __: unknown, event: unknown) => {
               const idx = (event as { index?: number })?.index
               if (idx != null && data[idx]) onItemClick(data[idx].item)
             }}
             cursor="pointer"
           >
-            {data.map((entry, idx) => (
-              <circle
-                key={idx}
-                r={8}
-                fill={ACTION_CONFIG[entry.action]?.dot ?? '#94a3b8'}
-                fillOpacity={0.7}
-                stroke={ACTION_CONFIG[entry.action]?.dot ?? '#94a3b8'}
-                strokeWidth={2}
-              />
-            ))}
+            {data.map((entry, idx) => {
+              const color = ACTION_CONFIG[entry.action]?.dot ?? '#94a3b8'
+              const absRet = Math.abs(entry.item.absolute_return ?? 0)
+              const r = Math.max(6, Math.min(16, 6 + absRet * 0.4))
+              return (
+                <Cell
+                  key={idx}
+                  fill={color}
+                  fillOpacity={0.7}
+                  stroke={color}
+                  strokeWidth={2}
+                  r={r}
+                />
+              )
+            })}
           </Scatter>
         </ScatterChart>
       </ResponsiveContainer>
@@ -284,7 +288,7 @@ export default function Sectors(): JSX.Element {
               <span className="text-3xl">{flag}</span>
               <div>
                 <h1 className="text-xl font-bold text-slate-900">{countryName}</h1>
-                <p className="text-sm text-slate-500">{country.name} vs ACWI</p>
+                <p className="text-sm text-slate-500">Sectors vs <span className="font-semibold text-teal-600">{country.benchmark_id ?? countryName} index</span></p>
               </div>
             </div>
             <div className="flex items-center gap-6 flex-wrap">

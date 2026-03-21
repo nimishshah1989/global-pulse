@@ -2,7 +2,7 @@
 
 Queries rs_scores table and maps to v2 format (action matrix instead of quadrants).
 Includes real-time RS computation from prices table using v2 formula:
-  RS Score = ((rs_line / rs_ma) - 1.0) * 1000 + 50, clipped [0, 100]
+  RS Score = ((rs_line / rs_ma) - 1.0) * 200 + 50, clipped [0, 100]
   Volume via OBV (On-Balance Volume) instead of SMA ratio.
 """
 from __future__ import annotations
@@ -279,13 +279,28 @@ _PERIOD_DAYS = {"1m": 21, "3m": 63, "6m": 126, "12m": 252}
 
 # Map frontend benchmark values to actual instrument IDs in the prices table
 _BENCHMARK_ID_MAP: dict[str, str] = {
+    # User-selectable benchmarks
     "ACWI": "ACWI",
     "SPX": "SPX",
     "NSEI": "NSEI",
+    "NIFTY50": "NSEI",
     "GLD": "GLD_US",
     "SHY": "SHY_US",
     "EEM": "EEM_US",
     "VEA": "VEA_US",
+    # Country indices (used as benchmarks for their sectors)
+    "FTM": "FTM",
+    "DAX": "DAX",
+    "CAC": "CAC",
+    "NKX": "NKX",
+    "HSI": "HSI",
+    "CSI300": "CSI300",
+    "KS11": "KS11",
+    "TWII": "TWII",
+    "AXJO": "AXJO",
+    "BVSP": "BVSP",
+    "GSPTSE": "GSPTSE",
+    "NDQ": "NDQ",
 }
 
 
@@ -296,8 +311,9 @@ def _compute_rs_from_prices(
 ) -> tuple[float, float, float]:
     """Compute RS score, RS momentum, and RS line from price series.
 
-    Uses v2 formula: RS Score = ((rs_line / rs_ma) - 1.0) * 1000 + 50, clipped [0, 100].
+    Uses v2 formula: RS Score = ((rs_line / rs_ma) - 1.0) * 200 + 50, clipped [0, 100].
     RS line above its MA => score > 50 => actually outperforming (not just percentile).
+    Multiplier 200 gives good spread: +-25% deviation = full 0-100 range.
 
     Returns (rs_score, rs_momentum, rs_line_latest).
     """
@@ -318,7 +334,7 @@ def _compute_rs_from_prices(
 
     # RS Score (v2 formula)
     if rs_ma > 0:
-        rs_score = ((rs_line / rs_ma) - 1.0) * 1000 + 50
+        rs_score = ((rs_line / rs_ma) - 1.0) * 200 + 50
         rs_score = max(0.0, min(100.0, round(rs_score, 2)))
     else:
         rs_score = 50.0
@@ -328,7 +344,7 @@ def _compute_rs_from_prices(
         old_rs = [v for _, v in rs_values[-(ma_period + 20):-20]]
         old_ma = sum(old_rs[-ma_period:]) / ma_period if len(old_rs) >= ma_period else rs_ma
         if old_ma > 0:
-            old_score = ((rs_values[-21][1] / old_ma) - 1.0) * 1000 + 50
+            old_score = ((rs_values[-21][1] / old_ma) - 1.0) * 200 + 50
             old_score = max(0.0, min(100.0, round(old_score, 2)))
         else:
             old_score = 50.0

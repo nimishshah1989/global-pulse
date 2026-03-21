@@ -351,7 +351,7 @@ def compute_instrument_scores(
 
     # RS score for ranking (0-100 based on where RS line is relative to MA)
     if rs_ma is not None and rs_ma > 0:
-        rs_score = round(((rs_line / rs_ma) - 1.0) * 1000 + 50, 2)
+        rs_score = round(((rs_line / rs_ma) - 1.0) * 200 + 50, 2)
         rs_score = max(0.0, min(100.0, rs_score))
     else:
         rs_score = 50.0

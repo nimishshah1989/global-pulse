@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
+import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Cell } from 'recharts'
 import { useTopETFs, useSectorRankings, useCountryRankings } from '@/api/hooks/useRankings'
 import { COUNTRY_FLAGS, COUNTRY_NAMES, SECTOR_DISPLAY_NAMES } from '@/data/countryData'
 import { formatPercent } from '@/utils/format'
@@ -146,17 +146,22 @@ function ETFScatter({ items }: { items: RankingItem[] }): JSX.Element {
           <ReferenceLine x={0} stroke="#94a3b8" strokeDasharray="3 3" />
           <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
           <Tooltip content={<CustomTooltip />} />
-          <Scatter data={data} fill="#0d9488">
-            {data.map((entry, idx) => (
-              <circle
-                key={idx}
-                r={6}
-                fill={ACTION_CONFIG[entry.action]?.dot ?? '#94a3b8'}
-                fillOpacity={0.7}
-                stroke={ACTION_CONFIG[entry.action]?.dot ?? '#94a3b8'}
-                strokeWidth={1}
-              />
-            ))}
+          <Scatter data={data}>
+            {data.map((entry, idx) => {
+              const color = ACTION_CONFIG[entry.action]?.dot ?? '#94a3b8'
+              const absRet = Math.abs(entry.item.absolute_return ?? 0)
+              const r = Math.max(4, Math.min(14, 4 + absRet * 0.4))
+              return (
+                <Cell
+                  key={idx}
+                  fill={color}
+                  fillOpacity={0.7}
+                  stroke={color}
+                  strokeWidth={1}
+                  r={r}
+                />
+              )
+            })}
           </Scatter>
         </ScatterChart>
       </ResponsiveContainer>
@@ -236,14 +241,14 @@ export default function ETFs(): JSX.Element {
   const { data: sectors } = useSectorRankings(code, null, null, period)
   const { data: countries } = useCountryRankings(null, null, period)
 
-  const country = countries?.find((c) => c.country === code)
-  const sectorInfo = sectors?.find((s) => s.sector === sector || s.instrument_id === sector)
+  const country = Array.isArray(countries) ? countries.find((c) => c.country === code) : undefined
+  const sectorInfo = Array.isArray(sectors) ? sectors.find((s) => s.sector === sector || s.instrument_id === sector) : undefined
   const flag = COUNTRY_FLAGS[code] ?? ''
   const countryName = COUNTRY_NAMES[code] ?? code
   const sectorName = SECTOR_DISPLAY_NAMES[sector] ?? sector
 
   const filtered = useMemo(() => {
-    if (!etfs) return []
+    if (!etfs || !Array.isArray(etfs)) return []
     if (!actionFilter) return etfs
     return etfs.filter((e) => e.action === actionFilter)
   }, [etfs, actionFilter])
@@ -265,7 +270,7 @@ export default function ETFs(): JSX.Element {
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <h1 className="text-xl font-bold text-slate-900">{sectorName}</h1>
-              <p className="text-sm text-slate-500">{flag} {countryName} — sector ETFs ranked by relative strength</p>
+              <p className="text-sm text-slate-500">{flag} {countryName} — ETFs vs <span className="font-semibold text-teal-600">{sectorInfo.benchmark_id ?? 'sector benchmark'}</span></p>
             </div>
             <div className="flex items-center gap-6 flex-wrap">
               <ActionBadge action={sectorInfo.action} />

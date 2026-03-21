@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
+import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Cell } from 'recharts'
 import { useCountryRankings } from '@/api/hooks/useRankings'
 import { useRegime } from '@/api/hooks/useRegime'
 import { COUNTRY_FLAGS, COUNTRY_NAMES } from '@/data/countryData'
@@ -172,23 +172,27 @@ function CountryScatter({ items, onItemClick }: { items: RankingItem[]; onItemCl
           <Tooltip content={<CustomTooltip />} />
           <Scatter
             data={data}
-            fill="#0d9488"
             onClick={(_: unknown, __: unknown, event: unknown) => {
               const idx = (event as { index?: number })?.index
               if (idx != null && data[idx]) onItemClick(data[idx].item)
             }}
             cursor="pointer"
           >
-            {data.map((entry, idx) => (
-              <circle
-                key={idx}
-                r={8}
-                fill={ACTION_CONFIG[entry.action]?.dot ?? '#94a3b8'}
-                fillOpacity={0.7}
-                stroke={ACTION_CONFIG[entry.action]?.dot ?? '#94a3b8'}
-                strokeWidth={2}
-              />
-            ))}
+            {data.map((entry, idx) => {
+              const color = ACTION_CONFIG[entry.action]?.dot ?? '#94a3b8'
+              const absRet = Math.abs(entry.item.absolute_return ?? 0)
+              const r = Math.max(6, Math.min(16, 6 + absRet * 0.4))
+              return (
+                <Cell
+                  key={idx}
+                  fill={color}
+                  fillOpacity={0.7}
+                  stroke={color}
+                  strokeWidth={2}
+                  r={r}
+                />
+              )
+            })}
           </Scatter>
         </ScatterChart>
       </ResponsiveContainer>
@@ -295,7 +299,7 @@ export default function Countries(): JSX.Element {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Global Pulse</h1>
-          <p className="text-sm text-slate-500 mt-1">Country relative strength vs ACWI benchmark</p>
+          <p className="text-sm text-slate-500 mt-1">Country relative strength vs <span className="font-semibold text-teal-600">ACWI</span> benchmark</p>
         </div>
         <div className={`px-4 py-2 rounded-lg text-sm font-semibold ${rCfg.bg} ${rCfg.text}`}>
           {regimeLabel(regime)}
